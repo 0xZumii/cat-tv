@@ -1,4 +1,4 @@
-# 🐱 Cat TV
+#  Cat TV
 
 A collective digital pet care platform where the community shares responsibility for cats' wellbeing. Built on Base with crypto-invisible UX.
 
