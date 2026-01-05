@@ -1,0 +1,20 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "cats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "feedEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "catId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
