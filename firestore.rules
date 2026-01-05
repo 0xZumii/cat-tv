@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users can only read their own data
+    // Writes happen through Cloud Functions (admin SDK)
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Only backend can write
+    }
+    
+    // Anyone can read cats, writes through Cloud Functions
+    match /cats/{catId} {
+      allow read: if true;
+      allow write: if false; // Only backend can write
+    }
+    
+    // Feed events are read-only for users
+    match /feedEvents/{eventId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Global stats readable by anyone
+    match /stats/global {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
