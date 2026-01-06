@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, User as FirebaseUser, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+import { getAuth, signInAnonymously, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBIe-l_1pSlxb0HZGK8Q4-CRG8gyO7uJ4I",
@@ -23,34 +23,13 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
-// Connect to emulators in development
-if (import.meta.env.DEV) {
-  // Detect Codespaces environment and build forwarded URLs
-  const hostname = window.location.hostname;
-  const isCodespaces = hostname.includes('.app.github.dev');
-
-  if (isCodespaces) {
-    // In Codespaces, use forwarded port URLs
-    // hostname format: codespace-name-port.app.github.dev -> extract base name
-    const baseName = hostname.replace(/-\d+\.app\.github\.dev$/, '');
-    const getHost = (port: number) => `${baseName}-${port}.app.github.dev`;
-
-    // Auth emulator needs full URL
-    connectAuthEmulator(auth, `https://${getHost(9099)}`, { disableWarnings: true });
-    // Other emulators need host + port (443 for HTTPS forwarding)
-    connectFirestoreEmulator(db, getHost(8080), 443);
-    connectStorageEmulator(storage, getHost(9199), 443);
-    connectFunctionsEmulator(functions, getHost(5001), 443);
-
-    console.log('Connected to Codespaces emulators:', { auth: getHost(9099), functions: getHost(5001) });
-  } else {
-    // Local development
-    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectStorageEmulator(storage, 'localhost', 9199);
-    connectFunctionsEmulator(functions, 'localhost', 5001);
-  }
-}
+// Uncomment to use local emulators (run: firebase emulators:start)
+// if (window.location.hostname === 'localhost') {
+//   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+//   connectFirestoreEmulator(db, 'localhost', 8080);
+//   connectStorageEmulator(storage, 'localhost', 9199);
+//   connectFunctionsEmulator(functions, 'localhost', 5001);
+// }
 
 // Auth helpers
 export const signInAnon = () => signInAnonymously(auth);

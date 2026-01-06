@@ -441,26 +441,9 @@ exports.health = functions.https.onRequest((req, res) => {
   });
 });
 
-/**
- * Process decay for all cats - call this periodically (cron/scheduler)
- * This returns decayed tokens to the protocol pool
- */
-exports.processDecay = functions.pubsub.schedule('every 1 hours').onRun(async (context) => {
-  try {
-    const wallet = getWallet();
-    const feeder = getCatFeederContract(wallet);
-    
-    // Process up to 100 cats at a time
-    const tx = await feeder.processDecayAll(100);
-    await tx.wait();
-    
-    console.log('Decay processed:', tx.hash);
-    return { success: true, txHash: tx.hash };
-  } catch (error) {
-    console.error('Decay processing failed:', error);
-    return { success: false, error: error.message };
-  }
-});
+// NOTE: Scheduled functions require firebase-functions v2 scheduler API
+// To enable, use: const {onSchedule} = require("firebase-functions/v2/scheduler");
+// exports.processDecay = onSchedule("every 1 hours", async (event) => { ... });
 
 /**
  * Manual decay processing (can be called by admin)
