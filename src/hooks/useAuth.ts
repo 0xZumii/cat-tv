@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { auth, signInAnon, onAuthChange, callGetUser } from '../lib/firebase';
+import { signInAnon, onAuthChange, callGetUser } from '../lib/firebase';
 import { User } from '../types';
 
 interface AuthState {

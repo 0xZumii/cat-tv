@@ -18,7 +18,7 @@ function App() {
   const { user, loading: authLoading, isAuthenticated, updateUser } = useAuth();
   const { cats, happyCatsCount, totalCats, loading: catsLoading } = useCats();
   const { balance, claiming, canClaimNow, timeUntilClaim, canAffordFeed, claim } = useBalance({ user, updateUser });
-  const { feed, isFeedingCat, feedsRemaining } = useFeed({ user, updateUser });
+  const { feed, isFeedingCat } = useFeed({ user, updateUser });
   const { toasts, showToast, removeToast } = useToast();
 
   // Check for purchase success on mount

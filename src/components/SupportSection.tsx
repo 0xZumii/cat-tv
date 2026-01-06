@@ -9,7 +9,7 @@ interface SupportSectionProps {
   onError: (message: string) => void;
 }
 
-export function SupportSection({ isAuthenticated, onSuccess, onError }: SupportSectionProps) {
+export function SupportSection({ isAuthenticated, onError }: SupportSectionProps) {
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   const handlePurchase = async (tierId: string) => {
