@@ -1,27 +1,50 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Users can only read their own data
-    // Writes happen through Cloud Functions (admin SDK)
-    match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // Only backend can write
+
+    // Helper function for common validations (e.g., required fields, types)
+    function isValidCat(data) {
+      return data.keys().hasAll(['name', 'imageUrl', 'ownerId', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.imageUrl is string && data.imageUrl.matches('^https://.*') &&
+             data.ownerId is string &&
+             data.createdAt is timestamp &&
+             request.time - data.createdAt < duration.value(5, 'm');  // Must be recent
     }
-    
-    // Anyone can read cats, writes through Cloud Functions
+
+    function isValidFeedEvent(data) {
+      return data.keys().hasAll(['type', 'userId', 'timestamp', 'imageUrl']) &&  // Adjust fields as needed
+             data.type is string && data.type in ['new_cat', 'other_type'] &&  // Allowed types
+             data.userId is string &&
+             data.timestamp is timestamp &&
+             data.imageUrl is string &&
+             request.time - data.timestamp < duration.value(5, 'm');
+    }
+
+    // Users: Own data only
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Cats: Public read, authenticated create with validation and ownership
     match /cats/{catId} {
       allow read: if true;
-      allow write: if false; // Only backend can write
+      allow create: if request.auth != null &&
+                       request.resource.data.ownerId == request.auth.uid &&
+                       isValidCat(request.resource.data);
+      allow update, delete: if false;  // Or add ownership check: request.auth.uid == resource.data.ownerId
     }
-    
-    // Feed events are read-only for users
+
+    // Feed events: Public read, authenticated create with validation
     match /feedEvents/{eventId} {
       allow read: if true;
-      allow write: if false;
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidFeedEvent(request.resource.data);
+      allow update, delete: if false;
     }
-    
-    // Global stats readable by anyone
+
+    // Global stats: Read-only
     match /stats/global {
       allow read: if true;
       allow write: if false;
