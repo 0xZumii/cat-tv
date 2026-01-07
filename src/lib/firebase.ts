@@ -38,12 +38,12 @@ export const onAuthChange = (callback: (user: FirebaseUser | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 
-// Cloud function callers
-export const callClaimDaily = httpsCallable(functions, 'claimDaily');
-export const callFeed = httpsCallable(functions, 'feed');
-export const callAddCat = httpsCallable(functions, 'addCat');
-export const callGetCats = httpsCallable(functions, 'getCats');
-export const callGetStats = httpsCallable(functions, 'getStats');
-export const callGetUser = httpsCallable(functions, 'getUser');
-export const callCreateCheckout = httpsCallable(functions, 'createCheckoutSession');
-export const callGetPurchaseTiers = httpsCallable(functions, 'getPurchaseTiers');
+// Cloud function callers - created as functions to ensure fresh auth state
+export const callClaimDaily = (data?: unknown) => httpsCallable(functions, 'claimDaily')(data);
+export const callFeed = (data?: unknown) => httpsCallable(functions, 'feed')(data);
+export const callAddCat = (data?: unknown) => httpsCallable(functions, 'addCat')(data);
+export const callGetCats = (data?: unknown) => httpsCallable(functions, 'getCats')(data);
+export const callGetStats = (data?: unknown) => httpsCallable(functions, 'getStats')(data);
+export const callGetUser = (data?: unknown) => httpsCallable(functions, 'getUser')(data);
+export const callCreateCheckout = (data?: unknown) => httpsCallable(functions, 'createCheckoutSession')(data);
+export const callGetPurchaseTiers = (data?: unknown) => httpsCallable(functions, 'getPurchaseTiers')(data);

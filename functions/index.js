@@ -114,15 +114,21 @@ function calculateHappiness(lastFedAt) {
  * Get or create user document
  */
 exports.getUser = functions.https.onCall(async (data, context) => {
+  console.log('[getUser] Called, context.auth:', context.auth ? `uid=${context.auth.uid}` : 'null');
+
   if (!context.auth) {
+    console.log('[getUser] No auth, throwing unauthenticated');
     throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
   }
-  
+
   const userId = context.auth.uid;
+  console.log('[getUser] User ID:', userId);
+
   const userRef = db.collection('users').doc(userId);
   const userDoc = await userRef.get();
-  
+
   if (!userDoc.exists) {
+    console.log('[getUser] Creating new user');
     // Create new user
     const newUser = {
       balance: 0,
@@ -131,9 +137,11 @@ exports.getUser = functions.https.onCall(async (data, context) => {
       createdAt: Date.now(),
     };
     await userRef.set(newUser);
+    console.log('[getUser] New user created:', newUser);
     return newUser;
   }
-  
+
+  console.log('[getUser] Returning existing user:', userDoc.data());
   return userDoc.data();
 });
 
