@@ -15,7 +15,7 @@ import { Footer } from './components/Footer';
 import { ToastContainer } from './components/Toast';
 
 function App() {
-  const { user, loading: authLoading, isAuthenticated, updateUser } = useAuth();
+  const { user, loading: authLoading, isAuthenticated, updateUser, login, logout } = useAuth();
   const { cats, happyCatsCount, totalCats, loading: catsLoading } = useCats();
   const { balance, claiming, canClaimNow, timeUntilClaim, canAffordFeed, claim } = useBalance({ user, updateUser });
   const { feed, isFeedingCat } = useFeed({ user, updateUser });
@@ -85,6 +85,9 @@ function App() {
           timeUntilClaim={timeUntilClaim}
           claiming={claiming}
           onClaim={handleClaim}
+          isAuthenticated={isAuthenticated}
+          onLogin={login}
+          onLogout={logout}
         />
 
         <main>

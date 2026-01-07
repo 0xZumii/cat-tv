@@ -2,9 +2,92 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { ethers } = require('ethers');
 const cors = require('cors')({ origin: true });
+const { PrivyClient } = require('@privy-io/server-auth');
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// Privy configuration
+const PRIVY_APP_ID = 'cmk3cnogu0517ky0dl6r7k98d';
+const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
+
+const privy = new PrivyClient(PRIVY_APP_ID, PRIVY_APP_SECRET);
+
+// Helper to verify Privy token and get user ID
+async function verifyPrivyToken(authHeader) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    const verifiedClaims = await privy.verifyAuthToken(token);
+    return verifiedClaims.userId;
+  } catch (error) {
+    console.error('[Privy] Token verification failed:', error.message);
+    return null;
+  }
+}
+
+// Helper to create authenticated HTTP endpoints
+function createAuthenticatedEndpoint(handler) {
+  return functions.https.onRequest(async (req, res) => {
+    // Handle CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    // Verify Privy token
+    const userId = await verifyPrivyToken(req.headers.authorization);
+    if (!userId) {
+      res.status(401).json({ error: { message: 'Must be logged in', status: 'UNAUTHENTICATED' } });
+      return;
+    }
+
+    try {
+      const data = req.body?.data || {};
+      const result = await handler(data, userId);
+      res.json({ result });
+    } catch (error) {
+      console.error('[Function Error]', error);
+      const status = error.httpErrorCode?.status || 500;
+      const message = error.message || 'Internal error';
+      res.status(status).json({ error: { message, status: error.code || 'INTERNAL' } });
+    }
+  });
+}
+
+// Helper to create public (unauthenticated) HTTP endpoints
+function createPublicEndpoint(handler) {
+  return functions.https.onRequest(async (req, res) => {
+    // Handle CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    try {
+      const data = req.body?.data || {};
+      const result = await handler(data);
+      res.json({ result });
+    } catch (error) {
+      console.error('[Function Error]', error);
+      const status = error.httpErrorCode?.status || 500;
+      const message = error.message || 'Internal error';
+      res.status(status).json({ error: { message, status: error.code || 'INTERNAL' } });
+    }
+  });
+}
 
 // ============================================
 // CONFIGURATION
@@ -111,17 +194,79 @@ function calculateHappiness(lastFedAt) {
 // ============================================
 
 /**
- * Get or create user document
+ * Upload media file (image/video) for a cat
+ * Receives base64-encoded file data and uploads to Storage
  */
-exports.getUser = functions.https.onCall(async (data, context) => {
-  console.log('[getUser] Called, context.auth:', context.auth ? `uid=${context.auth.uid}` : 'null');
+exports.uploadMedia = createAuthenticatedEndpoint(async (data, userId) => {
+  const { fileData, contentType, fileName } = data;
 
-  if (!context.auth) {
-    console.log('[getUser] No auth, throwing unauthenticated');
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+  if (!fileData || !contentType) {
+    const error = new Error('fileData and contentType required');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'INVALID_ARGUMENT';
+    throw error;
   }
 
-  const userId = context.auth.uid;
+  // Validate content type
+  if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
+    const error = new Error('Only images and videos are allowed');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'INVALID_ARGUMENT';
+    throw error;
+  }
+
+  // Decode base64 file
+  const buffer = Buffer.from(fileData, 'base64');
+
+  // Check file size (5MB max)
+  if (buffer.length > 5 * 1024 * 1024) {
+    const error = new Error('File too large. Max 5MB');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'INVALID_ARGUMENT';
+    throw error;
+  }
+
+  // Generate unique filename
+  const ext = fileName?.split('.').pop() || contentType.split('/')[1] || 'jpg';
+  const storagePath = `cats/${userId}/${Date.now()}.${ext}`;
+
+  try {
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(storagePath);
+
+    await file.save(buffer, {
+      metadata: {
+        contentType: contentType,
+        metadata: {
+          uploadedBy: userId,
+          uploadedAt: Date.now().toString(),
+        },
+      },
+    });
+
+    // Make the file publicly readable
+    await file.makePublic();
+
+    // Get the public URL
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+
+    return {
+      success: true,
+      mediaUrl: publicUrl,
+      mediaType: contentType.startsWith('video/') ? 'video' : 'image',
+    };
+  } catch (error) {
+    console.error('Upload error:', error);
+    const err = new Error('Failed to upload file');
+    err.httpErrorCode = { status: 500 };
+    throw err;
+  }
+});
+
+/**
+ * Get or create user document
+ */
+exports.getUser = createAuthenticatedEndpoint(async (data, userId) => {
   console.log('[getUser] User ID:', userId);
 
   const userRef = db.collection('users').doc(userId);
@@ -129,7 +274,6 @@ exports.getUser = functions.https.onCall(async (data, context) => {
 
   if (!userDoc.exists) {
     console.log('[getUser] Creating new user');
-    // Create new user
     const newUser = {
       balance: 0,
       lastClaimAt: null,
@@ -148,20 +292,14 @@ exports.getUser = functions.https.onCall(async (data, context) => {
 /**
  * Claim daily food allowance
  */
-exports.claimDaily = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
-  }
-  
-  const userId = context.auth.uid;
+exports.claimDaily = createAuthenticatedEndpoint(async (data, userId) => {
   const userRef = db.collection('users').doc(userId);
-  
+
   return db.runTransaction(async (transaction) => {
     const userDoc = await transaction.get(userRef);
-    
+
     let userData;
     if (!userDoc.exists) {
-      // New user
       userData = {
         balance: 0,
         lastClaimAt: null,
@@ -171,28 +309,28 @@ exports.claimDaily = functions.https.onCall(async (data, context) => {
     } else {
       userData = userDoc.data();
     }
-    
+
     // Check cooldown
     const now = Date.now();
     if (userData.lastClaimAt && (now - userData.lastClaimAt) < CONFIG.CLAIM_COOLDOWN_MS) {
       const remaining = CONFIG.CLAIM_COOLDOWN_MS - (now - userData.lastClaimAt);
       const hours = Math.floor(remaining / (1000 * 60 * 60));
       const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        `Already claimed today. Next claim in ${hours}h ${minutes}m`
-      );
+      const error = new Error(`Already claimed today. Next claim in ${hours}h ${minutes}m`);
+      error.httpErrorCode = { status: 400 };
+      error.code = 'FAILED_PRECONDITION';
+      throw error;
     }
-    
+
     // Update user
     const updatedUser = {
       ...userData,
       balance: userData.balance + CONFIG.DAILY_AMOUNT,
       lastClaimAt: now,
     };
-    
+
     transaction.set(userRef, updatedUser);
-    
+
     return {
       success: true,
       balance: updatedUser.balance,
@@ -204,17 +342,15 @@ exports.claimDaily = functions.https.onCall(async (data, context) => {
 /**
  * Feed a cat
  */
-exports.feed = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
-  }
-  
+exports.feed = createAuthenticatedEndpoint(async (data, userId) => {
   const { catId } = data;
   if (!catId) {
-    throw new functions.https.HttpsError('invalid-argument', 'catId is required');
+    const error = new Error('catId is required');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'INVALID_ARGUMENT';
+    throw error;
   }
-  
-  const userId = context.auth.uid;
+
   const userRef = db.collection('users').doc(userId);
   const catRef = db.collection('cats').doc(catId);
   const statsRef = db.collection('stats').doc('global');
@@ -228,42 +364,44 @@ exports.feed = functions.https.onCall(async (data, context) => {
     ]);
     
     if (!userDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'User not found');
+      const error = new Error('User not found');
+      error.httpErrorCode = { status: 404 };
+      throw error;
     }
     if (!catDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Cat not found');
+      const error = new Error('Cat not found');
+      error.httpErrorCode = { status: 404 };
+      throw error;
     }
-    
+
     const userData = userDoc.data();
     const catData = catDoc.data();
     const statsData = statsDoc.exists ? statsDoc.data() : { totalFeeds: 0 };
-    
+
     // Check balance
     if (userData.balance < CONFIG.FEED_COST) {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        'Not enough food! Come back tomorrow.'
-      );
+      const error = new Error('Not enough food! Come back tomorrow.');
+      error.httpErrorCode = { status: 400 };
+      throw error;
     }
-    
+
     // Check daily feed limit
     const now = Date.now();
     const todayStart = new Date().setHours(0, 0, 0, 0);
-    
+
     let feedsToday = userData.feedsToday || 0;
     let lastFeedDate = userData.lastFeedDate || 0;
-    
+
     // Reset if new day
     if (lastFeedDate < todayStart) {
       feedsToday = 0;
     }
-    
+
     // Check limit (max 50 feeds per day)
     if (feedsToday >= CONFIG.MAX_DAILY_FEEDS) {
-      throw new functions.https.HttpsError(
-        'resource-exhausted',
-        `Daily limit reached! You can feed ${CONFIG.MAX_DAILY_FEEDS} cats per day. Come back tomorrow!`
-      );
+      const error = new Error(`Daily limit reached! You can feed ${CONFIG.MAX_DAILY_FEEDS} cats per day. Come back tomorrow!`);
+      error.httpErrorCode = { status: 429 };
+      throw error;
     }
     
     // Update user
@@ -355,24 +493,24 @@ async function executeOnChainFeed(catId) {
 /**
  * Add a new cat
  */
-exports.addCat = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
-  }
-  
+exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
   const { name, mediaUrl, mediaType } = data;
-  
+
   if (!name || !mediaUrl) {
-    throw new functions.https.HttpsError('invalid-argument', 'name and mediaUrl required');
+    const error = new Error('name and mediaUrl required');
+    error.httpErrorCode = { status: 400 };
+    throw error;
   }
-  
+
   if (name.length > 20) {
-    throw new functions.https.HttpsError('invalid-argument', 'Name too long (max 20 chars)');
+    const error = new Error('Name too long (max 20 chars)');
+    error.httpErrorCode = { status: 400 };
+    throw error;
   }
-  
+
   const catRef = db.collection('cats').doc();
   const now = Date.now();
-  
+
   const catData = {
     name: name.trim(),
     mediaUrl,
@@ -380,11 +518,11 @@ exports.addCat = functions.https.onCall(async (data, context) => {
     totalFed: 0,
     lastFedAt: null,
     createdAt: now,
-    createdBy: context.auth.uid,
+    createdBy: userId,
   };
-  
+
   await catRef.set(catData);
-  
+
   return {
     success: true,
     catId: catRef.id,
@@ -393,14 +531,14 @@ exports.addCat = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * Get all cats
+ * Get all cats (public endpoint)
  */
-exports.getCats = functions.https.onCall(async (data, context) => {
+exports.getCats = createPublicEndpoint(async () => {
   const catsSnapshot = await db.collection('cats')
     .orderBy('createdAt', 'desc')
     .limit(50)
     .get();
-  
+
   const cats = [];
   catsSnapshot.forEach(doc => {
     const catData = doc.data();
@@ -410,21 +548,21 @@ exports.getCats = functions.https.onCall(async (data, context) => {
       happiness: calculateHappiness(catData.lastFedAt),
     });
   });
-  
+
   return { cats };
 });
 
 /**
- * Get global stats
+ * Get global stats (public endpoint)
  */
-exports.getStats = functions.https.onCall(async (data, context) => {
+exports.getStats = createPublicEndpoint(async () => {
   const [statsDoc, catsSnapshot] = await Promise.all([
     db.collection('stats').doc('global').get(),
     db.collection('cats').get(),
   ]);
-  
+
   const stats = statsDoc.exists ? statsDoc.data() : { totalFeeds: 0 };
-  
+
   // Count happy cats
   let happyCats = 0;
   catsSnapshot.forEach(doc => {
@@ -432,7 +570,7 @@ exports.getStats = functions.https.onCall(async (data, context) => {
     const happiness = calculateHappiness(cat.lastFedAt);
     if (happiness.level === 'happy') happyCats++;
   });
-  
+
   return {
     totalFeeds: stats.totalFeeds || 0,
     totalCats: catsSnapshot.size,
@@ -456,34 +594,33 @@ exports.health = functions.https.onRequest((req, res) => {
 /**
  * Manual decay processing (can be called by admin)
  */
-exports.triggerDecay = functions.https.onCall(async (data, context) => {
+exports.triggerDecay = createAuthenticatedEndpoint(async (data) => {
   // Optional: Add admin check here
-  
   try {
     const wallet = getWallet();
     const feeder = getCatFeederContract(wallet);
-    
+
     const maxCats = data.maxCats || 50;
     const tx = await feeder.processDecayAll(maxCats);
     await tx.wait();
-    
+
     return { success: true, txHash: tx.hash };
   } catch (error) {
     console.error('Manual decay failed:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    throw error;
   }
 });
 
 /**
- * Get on-chain contract stats
+ * Get on-chain contract stats (public endpoint)
  */
-exports.getContractStats = functions.https.onCall(async (data, context) => {
+exports.getContractStats = createPublicEndpoint(async () => {
   try {
     const wallet = getWallet();
     const feeder = getCatFeederContract(wallet);
-    
+
     const stats = await feeder.getStats();
-    
+
     return {
       faucetBalance: ethers.formatUnits(stats[0], CONFIG.TOKEN_DECIMALS),
       careFundBalance: ethers.formatUnits(stats[1], CONFIG.TOKEN_DECIMALS),
@@ -493,7 +630,7 @@ exports.getContractStats = functions.https.onCall(async (data, context) => {
     };
   } catch (error) {
     console.error('Get contract stats failed:', error);
-    throw new functions.https.HttpsError('internal', error.message);
+    throw error;
   }
 });
 
@@ -502,9 +639,9 @@ exports.getContractStats = functions.https.onCall(async (data, context) => {
 // ============================================
 
 /**
- * Get available purchase tiers
+ * Get available purchase tiers (public endpoint)
  */
-exports.getPurchaseTiers = functions.https.onCall(async (data, context) => {
+exports.getPurchaseTiers = createPublicEndpoint(async () => {
   return {
     tiers: Object.entries(CONFIG.PURCHASE_TIERS).map(([id, tier]) => ({
       id,
@@ -520,26 +657,25 @@ exports.getPurchaseTiers = functions.https.onCall(async (data, context) => {
 /**
  * Create Stripe checkout session
  */
-exports.createCheckoutSession = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
-  }
-  
+exports.createCheckoutSession = createAuthenticatedEndpoint(async (data, userId) => {
   const { tierId } = data;
   const tier = CONFIG.PURCHASE_TIERS[tierId];
-  
+
   if (!tier) {
-    throw new functions.https.HttpsError('invalid-argument', 'Invalid tier');
+    const error = new Error('Invalid tier');
+    error.httpErrorCode = { status: 400 };
+    throw error;
   }
-  
+
   // Initialize Stripe
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) {
-    throw new functions.https.HttpsError('failed-precondition', 'Stripe not configured');
+    const error = new Error('Stripe not configured');
+    error.httpErrorCode = { status: 500 };
+    throw error;
   }
-  
+
   const stripe = require('stripe')(stripeKey);
-  const userId = context.auth.uid;
   
   try {
     // Create checkout session
@@ -589,7 +725,9 @@ exports.createCheckoutSession = functions.https.onCall(async (data, context) => 
     };
   } catch (error) {
     console.error('Stripe checkout error:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to create checkout');
+    const err = new Error('Failed to create checkout');
+    err.httpErrorCode = { status: 500 };
+    throw err;
   }
 });
 

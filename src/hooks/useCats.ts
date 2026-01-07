@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { db, callGetCats } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { useApi } from '../contexts/ApiContext';
 import { Cat, CatWithHappiness } from '../types';
 import { getHappiness } from '../lib/constants';
 
@@ -11,6 +12,7 @@ interface CatsState {
 }
 
 export function useCats() {
+  const api = useApi();
   const [state, setState] = useState<CatsState>({
     cats: [],
     loading: true,
@@ -29,7 +31,7 @@ export function useCats() {
   useEffect(() => {
     const loadCats = async () => {
       try {
-        const result = await callGetCats();
+        const result = await api.callGetCats();
         const catsData = (result.data as { cats: Cat[] }).cats || [];
         setState({
           cats: transformCats(catsData),
@@ -47,7 +49,7 @@ export function useCats() {
     };
 
     loadCats();
-  }, [transformCats]);
+  }, [api, transformCats]);
 
   // Realtime listener for updates
   useEffect(() => {
@@ -59,7 +61,7 @@ export function useCats() {
       snapshot.forEach((doc) => {
         catsData.push({ id: doc.id, ...doc.data() } as Cat);
       });
-      
+
       setState(prev => ({
         ...prev,
         cats: transformCats(catsData),

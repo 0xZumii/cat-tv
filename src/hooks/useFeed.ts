@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { callFeed } from '../lib/firebase';
+import { useApi } from '../contexts/ApiContext';
 import { FeedResponse, User } from '../types';
 import { CONFIG } from '../lib/constants';
 
@@ -9,6 +9,7 @@ interface UseFeedProps {
 }
 
 export function useFeed({ user, updateUser }: UseFeedProps) {
+  const api = useApi();
   const [feeding, setFeeding] = useState<string | null>(null); // catId being fed
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,7 @@ export function useFeed({ user, updateUser }: UseFeedProps) {
     setError(null);
 
     try {
-      const result = await callFeed({ catId });
+      const result = await api.callFeed({ catId });
       const data = result.data as FeedResponse;
 
       updateUser({
@@ -36,14 +37,14 @@ export function useFeed({ user, updateUser }: UseFeedProps) {
       });
 
       return { success: true, message: data.message };
-    } catch (err: any) {
-      const message = err.message || 'Failed to feed';
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to feed';
       setError(message);
       return { success: false, error: message };
     } finally {
       setFeeding(null);
     }
-  }, [user, feeding, updateUser]);
+  }, [api, user, feeding, updateUser]);
 
   const isFeedingCat = useCallback((catId: string) => {
     return feeding === catId;

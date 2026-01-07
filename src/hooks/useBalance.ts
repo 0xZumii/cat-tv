@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { callClaimDaily } from '../lib/firebase';
+import { useApi } from '../contexts/ApiContext';
 import { ClaimResponse, User } from '../types';
 import { canClaim, getTimeUntilClaim, CONFIG } from '../lib/constants';
 
@@ -9,6 +9,7 @@ interface UseBalanceProps {
 }
 
 export function useBalance({ user, updateUser }: UseBalanceProps) {
+  const api = useApi();
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +25,7 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
     setError(null);
 
     try {
-      const result = await callClaimDaily();
+      const result = await api.callClaimDaily();
       const data = result.data as ClaimResponse;
 
       updateUser({
@@ -33,14 +34,14 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
       });
 
       return { success: true, claimed: data.claimed };
-    } catch (err: any) {
-      const message = err.message || 'Failed to claim';
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to claim';
       setError(message);
       return { success: false, error: message };
     } finally {
       setClaiming(false);
     }
-  }, [user, claiming, canClaimNow, updateUser]);
+  }, [api, user, claiming, canClaimNow, updateUser]);
 
   const canAffordFeed = balance >= CONFIG.FEED_COST;
 

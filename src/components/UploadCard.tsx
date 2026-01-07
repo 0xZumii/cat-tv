@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
 import clsx from 'clsx';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage, callAddCat } from '../lib/firebase';
+import { useApi } from '../contexts/ApiContext';
 
 interface UploadCardProps {
   userId: string | undefined;
@@ -11,13 +10,14 @@ interface UploadCardProps {
 }
 
 export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
+  const api = useApi();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
@@ -42,7 +42,7 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
     }
 
     setFile(selectedFile);
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
       setPreview(e.target?.result as string);
@@ -53,7 +53,7 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
-    
+
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
       handleFileSelect(droppedFile);
@@ -66,24 +66,36 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
     setUploading(true);
 
     try {
-      // Upload to Firebase Storage
-      const ext = file.name.split('.').pop();
-      const filename = `cats/${userId}/${Date.now()}.${ext}`;
-      const storageRef = ref(storage, filename);
-      
-      await uploadBytes(storageRef, file);
-      const mediaUrl = await getDownloadURL(storageRef);
+      // Convert file to base64
+      const fileData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Upload via cloud function
+      const uploadResult = await api.callUploadMedia({
+        fileData,
+        contentType: file.type,
+        fileName: file.name,
+      });
+
+      const { mediaUrl, mediaType } = uploadResult.data as { mediaUrl: string; mediaType: string };
 
       // Create cat in Firestore via Cloud Function
-      const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
-      
-      await callAddCat({
+      await api.callAddCat({
         name: name.trim(),
         mediaUrl,
         mediaType,
       });
 
-      onSuccess(`${name} has joined Cat TV! 🐱`);
+      onSuccess(`${name} has joined Cat TV!`);
       resetForm();
     } catch (err) {
       console.error('Upload error:', err);
@@ -118,14 +130,14 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
 
       {/* Upload Modal */}
       {isModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && resetForm()}
         >
           <div className="bg-white rounded-card p-6 max-w-md w-full shadow-xl">
             <div className="flex justify-between items-center mb-6">
               <h2 className="font-display text-2xl font-semibold">
-                Add a Cat 🐱
+                Add a Cat
               </h2>
               <button
                 onClick={resetForm}
@@ -144,25 +156,25 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
               className={clsx(
                 'aspect-square rounded-xl mb-4 cursor-pointer transition-colors',
                 'border-2 border-dashed flex items-center justify-center',
-                dragActive 
-                  ? 'border-accent-orange bg-accent-orange/5' 
+                dragActive
+                  ? 'border-accent-orange bg-accent-orange/5'
                   : 'border-gray-200 bg-gray-50 hover:border-accent-orange/50',
                 preview && 'border-none'
               )}
             >
               {preview ? (
                 file?.type.startsWith('video/') ? (
-                  <video 
-                    src={preview} 
+                  <video
+                    src={preview}
                     className="w-full h-full object-cover rounded-xl"
-                    autoPlay 
-                    loop 
-                    muted 
+                    autoPlay
+                    loop
+                    muted
                   />
                 ) : (
-                  <img 
-                    src={preview} 
-                    alt="Preview" 
+                  <img
+                    src={preview}
+                    alt="Preview"
                     className="w-full h-full object-cover rounded-xl"
                   />
                 )

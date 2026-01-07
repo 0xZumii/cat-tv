@@ -1,8 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBIe-l_1pSlxb0HZGK8Q4-CRG8gyO7uJ4I",
@@ -17,33 +15,81 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Export services
-export const auth = getAuth(app);
+// Export services (Firestore for real-time listeners, Storage for uploads)
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const functions = getFunctions(app);
 
-// Uncomment to use local emulators (run: firebase emulators:start)
-// if (window.location.hostname === 'localhost') {
-//   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-//   connectFirestoreEmulator(db, 'localhost', 8080);
-//   connectStorageEmulator(storage, 'localhost', 9199);
-//   connectFunctionsEmulator(functions, 'localhost', 5001);
-// }
+// API base URL for cloud functions
+const API_BASE = 'https://us-central1-cattv-99bd2.cloudfunctions.net';
 
-// Auth helpers
-export const signInAnon = () => signInAnonymously(auth);
+// Generic function caller that takes a Privy token
+async function callFunction(name: string, token: string | null, data: unknown = {}) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
 
-export const onAuthChange = (callback: (user: FirebaseUser | null) => void) => {
-  return onAuthStateChanged(auth, callback);
-};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-// Cloud function callers - created as functions to ensure fresh auth state
-export const callClaimDaily = (data?: unknown) => httpsCallable(functions, 'claimDaily')(data);
-export const callFeed = (data?: unknown) => httpsCallable(functions, 'feed')(data);
-export const callAddCat = (data?: unknown) => httpsCallable(functions, 'addCat')(data);
-export const callGetCats = (data?: unknown) => httpsCallable(functions, 'getCats')(data);
-export const callGetStats = (data?: unknown) => httpsCallable(functions, 'getStats')(data);
-export const callGetUser = (data?: unknown) => httpsCallable(functions, 'getUser')(data);
-export const callCreateCheckout = (data?: unknown) => httpsCallable(functions, 'createCheckoutSession')(data);
-export const callGetPurchaseTiers = (data?: unknown) => httpsCallable(functions, 'getPurchaseTiers')(data);
+  const response = await fetch(`${API_BASE}/${name}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ data }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage = `HTTP ${response.status}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      errorMessage = errorJson.error?.message || errorMessage;
+    } catch {
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+
+  const json = await response.json();
+  return { data: json.result };
+}
+
+// Cloud function callers - now take token as parameter
+export const createApiCaller = (getToken: () => Promise<string | null>) => ({
+  callGetUser: async () => {
+    const token = await getToken();
+    return callFunction('getUser', token);
+  },
+  callClaimDaily: async () => {
+    const token = await getToken();
+    return callFunction('claimDaily', token);
+  },
+  callFeed: async (data: { catId: string }) => {
+    const token = await getToken();
+    return callFunction('feed', token, data);
+  },
+  callAddCat: async (data: { name: string; mediaUrl: string; mediaType: string }) => {
+    const token = await getToken();
+    return callFunction('addCat', token, data);
+  },
+  callGetCats: async () => {
+    const token = await getToken();
+    return callFunction('getCats', token);
+  },
+  callGetStats: async () => {
+    const token = await getToken();
+    return callFunction('getStats', token);
+  },
+  callCreateCheckout: async (data: { tierId: string }) => {
+    const token = await getToken();
+    return callFunction('createCheckoutSession', token, data);
+  },
+  callGetPurchaseTiers: async () => {
+    const token = await getToken();
+    return callFunction('getPurchaseTiers', token);
+  },
+  callUploadMedia: async (data: { fileData: string; contentType: string; fileName: string }) => {
+    const token = await getToken();
+    return callFunction('uploadMedia', token, data);
+  },
+});

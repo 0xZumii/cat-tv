@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { callCreateCheckout } from '../lib/firebase';
+import { useApi } from '../contexts/ApiContext';
 import { PURCHASE_TIERS } from '../lib/constants';
 
 interface SupportSectionProps {
@@ -10,6 +10,7 @@ interface SupportSectionProps {
 }
 
 export function SupportSection({ isAuthenticated, onError }: SupportSectionProps) {
+  const api = useApi();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   const handlePurchase = async (tierId: string) => {
@@ -18,7 +19,7 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
     setPurchasing(tierId);
 
     try {
-      const result = await callCreateCheckout({
+      const result = await api.callCreateCheckout({
         tierId,
         successUrl: window.location.origin,
         cancelUrl: window.location.origin,
@@ -31,13 +32,14 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
       } else {
         throw new Error('No checkout URL returned');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Purchase error:', err);
-      
-      if (err.message?.includes('not configured')) {
-        onError('Purchases coming soon! 🐱');
+      const message = err instanceof Error ? err.message : 'Failed to start checkout';
+
+      if (message?.includes('not configured')) {
+        onError('Purchases coming soon!');
       } else {
-        onError(err.message || 'Failed to start checkout');
+        onError(message);
       }
     } finally {
       setPurchasing(null);
@@ -48,7 +50,7 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
     <section className="bg-gradient-to-br from-orange-50 to-orange-100 py-16 px-6">
       <div className="max-w-3xl mx-auto text-center">
         <h2 className="font-display text-3xl font-semibold text-text-main mb-3">
-          💛 Support Cat TV
+          Support Cat TV
         </h2>
         <p className="text-lg text-text-soft mb-8">
           Want to feed more cats? Your support keeps Cat TV running and helps real shelters.
@@ -65,15 +67,15 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
                 'bg-white rounded-card p-6 min-w-[180px] shadow-card transition-all',
                 'hover:scale-105 hover:shadow-lg border-3',
                 purchasing === tier.id && 'opacity-75',
-                index === 1 
-                  ? 'border-accent-orange relative' 
+                index === 1
+                  ? 'border-accent-orange relative'
                   : 'border-transparent hover:border-accent-orange'
               )}
             >
               {/* Popular Badge */}
               {index === 1 && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent-orange text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-                  💛 Most Popular
+                  Most Popular
                 </span>
               )}
 
@@ -81,7 +83,7 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
                 ${tier.priceUsd}
               </div>
               <div className="font-bold text-text-main mb-1">
-                🐟 {tier.cattv} Food
+                {tier.cattv} Food
               </div>
               <div className="text-sm text-text-soft">
                 Feed {tier.catsCanFeed} cats
@@ -94,7 +96,7 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
         <div className="bg-accent-orange/10 rounded-2xl px-6 py-4 max-w-lg mx-auto">
           <p className="text-sm text-text-main leading-relaxed">
             <strong className="text-accent-orange">Your purchase supports:</strong>{' '}
-            The Care Fund, which funds real cat shelter donations, keeps Cat TV free for everyone, and sustains the community. Thank you for caring! 🐱
+            The Care Fund, which funds real cat shelter donations, keeps Cat TV free for everyone, and sustains the community. Thank you for caring!
           </p>
         </div>
       </div>

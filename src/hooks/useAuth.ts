@@ -1,80 +1,100 @@
-import { useState, useEffect } from 'react';
-import { User as FirebaseUser } from 'firebase/auth';
-import { signInAnon, onAuthChange, callGetUser } from '../lib/firebase';
+import { useState, useEffect, useCallback } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import { User } from '../types';
 
+const API_BASE = 'https://us-central1-cattv-99bd2.cloudfunctions.net';
+
 interface AuthState {
-  firebaseUser: FirebaseUser | null;
   user: User | null;
   loading: boolean;
   error: string | null;
 }
 
+async function callFunction(name: string, token: string, data: unknown = {}) {
+  const response = await fetch(`${API_BASE}/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ data }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+
+  const json = await response.json();
+  return json.result;
+}
+
 export function useAuth() {
+  const { ready, authenticated, user: privyUser, login, logout, getAccessToken } = usePrivy();
+
   const [state, setState] = useState<AuthState>({
-    firebaseUser: null,
     user: null,
     loading: true,
     error: null,
   });
 
+  // Fetch user data from our backend when authenticated
   useEffect(() => {
-    console.log('[useAuth] Setting up auth listener...');
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
-      console.log('[useAuth] Auth state changed:', firebaseUser ? `User ${firebaseUser.uid}` : 'No user');
-      if (firebaseUser) {
-        setState(prev => ({ ...prev, firebaseUser, loading: true }));
+    async function fetchUserData() {
+      if (!ready) return;
 
-        try {
-          console.log('[useAuth] Calling getUser via httpsCallable...');
-          const result = await callGetUser();
-          console.log('[useAuth] getUser result:', result.data);
-          const userData = result.data as User;
-          setState({
-            firebaseUser,
-            user: { ...userData, id: firebaseUser.uid },
-            loading: false,
-            error: null,
-          });
-        } catch (err) {
-          console.error('[useAuth] Failed to get user data:', err);
-          setState(prev => ({
-            ...prev,
-            loading: false,
-            error: 'Failed to load user data',
-          }));
-        }
-      } else {
-        // Sign in anonymously
-        console.log('[useAuth] No user, attempting anonymous sign-in...');
-        try {
-          await signInAnon();
-          console.log('[useAuth] Anonymous sign-in successful');
-        } catch (err) {
-          console.error('[useAuth] Anonymous sign-in failed:', err);
-          setState({
-            firebaseUser: null,
-            user: null,
-            loading: false,
-            error: 'Failed to authenticate',
-          });
-        }
+      if (!authenticated || !privyUser) {
+        setState({
+          user: null,
+          loading: false,
+          error: null,
+        });
+        return;
       }
-    });
 
-    return () => unsubscribe();
-  }, []);
+      setState(prev => ({ ...prev, loading: true }));
 
-  const updateUser = (updates: Partial<User>) => {
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          throw new Error('Failed to get access token');
+        }
+
+        const userData = await callFunction('getUser', token);
+        setState({
+          user: { ...userData, id: privyUser.id },
+          loading: false,
+          error: null,
+        });
+      } catch (err) {
+        console.error('[useAuth] Failed to get user data:', err);
+        setState({
+          user: null,
+          loading: false,
+          error: 'Failed to load user data',
+        });
+      }
+    }
+
+    fetchUserData();
+  }, [ready, authenticated, privyUser, getAccessToken]);
+
+  const updateUser = useCallback((updates: Partial<User>) => {
     setState(prev => ({
       ...prev,
       user: prev.user ? { ...prev.user, ...updates } : null,
     }));
-  };
+  }, []);
 
   return {
-    ...state,
-    isAuthenticated: !!state.firebaseUser,
+    user: state.user,
+    loading: !ready || state.loading,
+    error: state.error,
+    isAuthenticated: authenticated,
+    privyUser,
+    login,
+    logout,
     updateUser,
+    getAccessToken,
   };
 }
