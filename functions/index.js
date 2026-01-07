@@ -94,23 +94,26 @@ function createPublicEndpoint(handler) {
 // ============================================
 const CONFIG = {
   // Token contract on Base
-  TOKEN_ADDRESS: '0xbb0b50cc8efdf947b1808dabcc8bbd58121d5b07',
-  
-  // CatFeeder contract (deploy and update this!)
+  TOKEN_ADDRESS: '0xBb0B50CC8EFDF947b1808dabcc8Bbd58121D5B07',
+
+  // CatTVFaucet contract (deploy and update this!)
+  FAUCET_ADDRESS: process.env.FAUCET_ADDRESS || '0x0000000000000000000000000000000000000000',
+
+  // CatFeeder contract (for feeding cats - optional)
   CATFEEDER_ADDRESS: process.env.CATFEEDER_ADDRESS || '0x0000000000000000000000000000000000000000',
-  
+
   // Base Mainnet RPC (use your own for production)
   RPC_URL: process.env.RPC_URL || 'https://mainnet.base.org',
-  
+
   // Game parameters (adjusted for 100B supply)
   DAILY_AMOUNT: 100,      // 100 tokens per day
   FEED_COST: 10,          // 10 tokens per feed
   MAX_DAILY_FEEDS: 50,    // 50 feeds per day (supports paying users)
   CLAIM_COOLDOWN_MS: 24 * 60 * 60 * 1000, // 24 hours
-  
+
   // Token decimals (standard ERC-20)
   TOKEN_DECIMALS: 18,
-  
+
   // Stripe purchase tiers (fixed in-app rate: $1 = 100 CATTV)
   PURCHASE_TIERS: {
     tier1: { priceUsd: 1, priceCents: 100, cattv: 100, catsCanFeed: 10 },
@@ -127,7 +130,21 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
-// CatFeeder ABI
+// CatTVFaucet ABI (for daily claims)
+const FAUCET_ABI = [
+  'function claimFor(address recipient) external',
+  'function batchClaimFor(address[] recipients) external',
+  'function canUserClaim(address user) view returns (bool canClaim, uint256 timeRemaining)',
+  'function faucetBalance() view returns (uint256)',
+  'function claimAmount() view returns (uint256)',
+  'function claimCooldown() view returns (uint256)',
+  'function lastClaimTime(address user) view returns (uint256)',
+  'function totalClaims() view returns (uint256)',
+  'function totalDistributed() view returns (uint256)',
+  'event Claimed(address indexed user, uint256 amount, uint256 timestamp)',
+];
+
+// CatFeeder ABI (for feeding cats - optional future use)
 const CATFEEDER_ABI = [
   'function feed(bytes32 catId) external',
   'function claimFromFaucet(address recipient, uint256 amount) external',
@@ -162,6 +179,11 @@ function getTokenContract(wallet) {
   return new ethers.Contract(CONFIG.TOKEN_ADDRESS, ERC20_ABI, wallet);
 }
 
+// Get CatTVFaucet contract instance
+function getFaucetContract(wallet) {
+  return new ethers.Contract(CONFIG.FAUCET_ADDRESS, FAUCET_ABI, wallet);
+}
+
 // Get CatFeeder contract instance
 function getCatFeederContract(wallet) {
   return new ethers.Contract(CONFIG.CATFEEDER_ADDRESS, CATFEEDER_ABI, wallet);
@@ -180,13 +202,66 @@ function catIdToBytes32(catId) {
 // Calculate happiness based on last fed time
 function calculateHappiness(lastFedAt) {
   if (!lastFedAt) return { level: 'sad', emoji: '😿', label: 'Hungry' };
-  
+
   const now = Date.now();
   const hoursSinceFed = (now - lastFedAt) / (1000 * 60 * 60);
-  
+
   if (hoursSinceFed < 6) return { level: 'happy', emoji: '😸', label: 'Happy' };
   if (hoursSinceFed < 24) return { level: 'okay', emoji: '🙂', label: 'Okay' };
   return { level: 'sad', emoji: '😿', label: 'Hungry' };
+}
+
+/**
+ * Fallback claim function using direct token transfer (when faucet not deployed)
+ */
+async function claimDailyFallback(userData, userRef, userId) {
+  // Check cooldown
+  const now = Date.now();
+  if (userData.lastClaimAt && (now - userData.lastClaimAt) < CONFIG.CLAIM_COOLDOWN_MS) {
+    const remaining = CONFIG.CLAIM_COOLDOWN_MS - (now - userData.lastClaimAt);
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    const error = new Error(`Already claimed today. Next claim in ${hours}h ${minutes}m`);
+    error.httpErrorCode = { status: 400 };
+    error.code = 'FAILED_PRECONDITION';
+    throw error;
+  }
+
+  // Send real tokens to user's wallet via direct transfer
+  let txHash = null;
+  try {
+    const wallet = getWallet();
+    const token = getTokenContract(wallet);
+    const amount = toTokenUnits(CONFIG.DAILY_AMOUNT);
+
+    console.log(`[claimDailyFallback] Sending ${CONFIG.DAILY_AMOUNT} CATTV to ${userData.walletAddress}`);
+
+    const tx = await token.transfer(userData.walletAddress, amount);
+    await tx.wait();
+    txHash = tx.hash;
+
+    console.log(`[claimDailyFallback] Token transfer successful: ${txHash}`);
+  } catch (err) {
+    console.error('[claimDailyFallback] Token transfer failed:', err);
+    const error = new Error('Failed to claim tokens. Please try again later.');
+    error.httpErrorCode = { status: 500 };
+    throw error;
+  }
+
+  // Update user record
+  const updatedUser = {
+    ...userData,
+    lastClaimAt: now,
+    lastClaimTxHash: txHash,
+  };
+
+  await userRef.set(updatedUser, { merge: true });
+
+  return {
+    success: true,
+    claimed: CONFIG.DAILY_AMOUNT,
+    txHash,
+  };
 }
 
 // ============================================
@@ -301,37 +376,24 @@ exports.getUser = createAuthenticatedEndpoint(async (data, userId) => {
 
 /**
  * Claim daily food allowance
- * Sends real $CATTV tokens to the user's wallet
+ * Uses the CatTVFaucet smart contract for transparent, on-chain distribution
  */
 exports.claimDaily = createAuthenticatedEndpoint(async (data, userId) => {
   const userRef = db.collection('users').doc(userId);
 
-  // First check cooldown and get user data
+  // Get user data
   const userDoc = await userRef.get();
 
   let userData;
   if (!userDoc.exists) {
     userData = {
       walletAddress: null,
-      balance: 0,
       lastClaimAt: null,
       totalFeeds: 0,
       createdAt: Date.now(),
     };
   } else {
     userData = userDoc.data();
-  }
-
-  // Check cooldown
-  const now = Date.now();
-  if (userData.lastClaimAt && (now - userData.lastClaimAt) < CONFIG.CLAIM_COOLDOWN_MS) {
-    const remaining = CONFIG.CLAIM_COOLDOWN_MS - (now - userData.lastClaimAt);
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    const error = new Error(`Already claimed today. Next claim in ${hours}h ${minutes}m`);
-    error.httpErrorCode = { status: 400 };
-    error.code = 'FAILED_PRECONDITION';
-    throw error;
   }
 
   // Check if user has a wallet address
@@ -342,27 +404,52 @@ exports.claimDaily = createAuthenticatedEndpoint(async (data, userId) => {
     throw error;
   }
 
-  // Send real tokens to user's wallet
+  // Check if faucet contract is configured
+  if (CONFIG.FAUCET_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    // Fallback to direct transfer if faucet not deployed yet
+    return claimDailyFallback(userData, userRef, userId);
+  }
+
+  // Use the faucet contract
   let txHash = null;
   try {
     const wallet = getWallet();
-    const token = getTokenContract(wallet);
-    const amount = toTokenUnits(CONFIG.DAILY_AMOUNT);
+    const faucet = getFaucetContract(wallet);
 
-    console.log(`[claimDaily] Sending ${CONFIG.DAILY_AMOUNT} CATTV to ${userData.walletAddress}`);
+    // Check if user can claim on-chain (faucet enforces cooldown)
+    const [canClaim, timeRemaining] = await faucet.canUserClaim(userData.walletAddress);
 
-    const tx = await token.transfer(userData.walletAddress, amount);
+    if (!canClaim) {
+      const hours = Math.floor(Number(timeRemaining) / 3600);
+      const minutes = Math.floor((Number(timeRemaining) % 3600) / 60);
+      const error = new Error(`Already claimed today. Next claim in ${hours}h ${minutes}m`);
+      error.httpErrorCode = { status: 400 };
+      error.code = 'FAILED_PRECONDITION';
+      throw error;
+    }
+
+    console.log(`[claimDaily] Claiming via faucet for ${userData.walletAddress}`);
+
+    // Call claimFor on the faucet contract (server is authorized distributor)
+    const tx = await faucet.claimFor(userData.walletAddress);
     await tx.wait();
     txHash = tx.hash;
 
-    console.log(`[claimDaily] Token transfer successful: ${txHash}`);
+    console.log(`[claimDaily] Faucet claim successful: ${txHash}`);
   } catch (err) {
-    console.error('[claimDaily] Token transfer failed:', err);
-    // For now, continue with off-chain balance if on-chain fails
-    // In production, you might want to fail entirely or queue for retry
+    // If it's our custom error, re-throw it
+    if (err.httpErrorCode) {
+      throw err;
+    }
+
+    console.error('[claimDaily] Faucet claim failed:', err);
+    const error = new Error('Failed to claim tokens. Please try again later.');
+    error.httpErrorCode = { status: 500 };
+    throw error;
   }
 
-  // Update user record (track claim time even if on-chain transfer fails)
+  // Update user record with claim time
+  const now = Date.now();
   const updatedUser = {
     ...userData,
     lastClaimAt: now,
