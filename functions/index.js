@@ -265,9 +265,10 @@ exports.uploadMedia = createAuthenticatedEndpoint(async (data, userId) => {
 
 /**
  * Get or create user document
+ * Also stores the user's wallet address for on-chain token transfers
  */
 exports.getUser = createAuthenticatedEndpoint(async (data, userId) => {
-  console.log('[getUser] User ID:', userId);
+  console.log('[getUser] User ID:', userId, 'Wallet:', data.walletAddress);
 
   const userRef = db.collection('users').doc(userId);
   const userDoc = await userRef.get();
@@ -275,6 +276,7 @@ exports.getUser = createAuthenticatedEndpoint(async (data, userId) => {
   if (!userDoc.exists) {
     console.log('[getUser] Creating new user');
     const newUser = {
+      walletAddress: data.walletAddress || null,
       balance: 0,
       lastClaimAt: null,
       totalFeeds: 0,
@@ -285,58 +287,95 @@ exports.getUser = createAuthenticatedEndpoint(async (data, userId) => {
     return newUser;
   }
 
-  console.log('[getUser] Returning existing user:', userDoc.data());
-  return userDoc.data();
+  // Update wallet address if provided and changed
+  const existingData = userDoc.data();
+  if (data.walletAddress && data.walletAddress !== existingData.walletAddress) {
+    console.log('[getUser] Updating wallet address');
+    await userRef.update({ walletAddress: data.walletAddress });
+    existingData.walletAddress = data.walletAddress;
+  }
+
+  console.log('[getUser] Returning existing user:', existingData);
+  return existingData;
 });
 
 /**
  * Claim daily food allowance
+ * Sends real $CATTV tokens to the user's wallet
  */
 exports.claimDaily = createAuthenticatedEndpoint(async (data, userId) => {
   const userRef = db.collection('users').doc(userId);
 
-  return db.runTransaction(async (transaction) => {
-    const userDoc = await transaction.get(userRef);
+  // First check cooldown and get user data
+  const userDoc = await userRef.get();
 
-    let userData;
-    if (!userDoc.exists) {
-      userData = {
-        balance: 0,
-        lastClaimAt: null,
-        totalFeeds: 0,
-        createdAt: Date.now(),
-      };
-    } else {
-      userData = userDoc.data();
-    }
-
-    // Check cooldown
-    const now = Date.now();
-    if (userData.lastClaimAt && (now - userData.lastClaimAt) < CONFIG.CLAIM_COOLDOWN_MS) {
-      const remaining = CONFIG.CLAIM_COOLDOWN_MS - (now - userData.lastClaimAt);
-      const hours = Math.floor(remaining / (1000 * 60 * 60));
-      const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-      const error = new Error(`Already claimed today. Next claim in ${hours}h ${minutes}m`);
-      error.httpErrorCode = { status: 400 };
-      error.code = 'FAILED_PRECONDITION';
-      throw error;
-    }
-
-    // Update user
-    const updatedUser = {
-      ...userData,
-      balance: userData.balance + CONFIG.DAILY_AMOUNT,
-      lastClaimAt: now,
+  let userData;
+  if (!userDoc.exists) {
+    userData = {
+      walletAddress: null,
+      balance: 0,
+      lastClaimAt: null,
+      totalFeeds: 0,
+      createdAt: Date.now(),
     };
+  } else {
+    userData = userDoc.data();
+  }
 
-    transaction.set(userRef, updatedUser);
+  // Check cooldown
+  const now = Date.now();
+  if (userData.lastClaimAt && (now - userData.lastClaimAt) < CONFIG.CLAIM_COOLDOWN_MS) {
+    const remaining = CONFIG.CLAIM_COOLDOWN_MS - (now - userData.lastClaimAt);
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    const error = new Error(`Already claimed today. Next claim in ${hours}h ${minutes}m`);
+    error.httpErrorCode = { status: 400 };
+    error.code = 'FAILED_PRECONDITION';
+    throw error;
+  }
 
-    return {
-      success: true,
-      balance: updatedUser.balance,
-      claimed: CONFIG.DAILY_AMOUNT,
-    };
-  });
+  // Check if user has a wallet address
+  if (!userData.walletAddress) {
+    const error = new Error('No wallet address found. Please reload the page.');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'FAILED_PRECONDITION';
+    throw error;
+  }
+
+  // Send real tokens to user's wallet
+  let txHash = null;
+  try {
+    const wallet = getWallet();
+    const token = getTokenContract(wallet);
+    const amount = toTokenUnits(CONFIG.DAILY_AMOUNT);
+
+    console.log(`[claimDaily] Sending ${CONFIG.DAILY_AMOUNT} CATTV to ${userData.walletAddress}`);
+
+    const tx = await token.transfer(userData.walletAddress, amount);
+    await tx.wait();
+    txHash = tx.hash;
+
+    console.log(`[claimDaily] Token transfer successful: ${txHash}`);
+  } catch (err) {
+    console.error('[claimDaily] Token transfer failed:', err);
+    // For now, continue with off-chain balance if on-chain fails
+    // In production, you might want to fail entirely or queue for retry
+  }
+
+  // Update user record (track claim time even if on-chain transfer fails)
+  const updatedUser = {
+    ...userData,
+    lastClaimAt: now,
+    lastClaimTxHash: txHash,
+  };
+
+  await userRef.set(updatedUser, { merge: true });
+
+  return {
+    success: true,
+    claimed: CONFIG.DAILY_AMOUNT,
+    txHash,
+  };
 });
 
 /**

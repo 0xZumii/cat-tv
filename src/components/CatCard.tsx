@@ -20,7 +20,10 @@ export function CatCard({ cat, onFeed, canFeed, isFeeding }: CatCardProps) {
   };
 
   return (
-    <div className="bg-white rounded-card shadow-card overflow-hidden transition-transform hover:scale-[1.02]">
+    <div
+      id={`cat-${cat.id}`}
+      className="bg-white rounded-card shadow-card overflow-hidden transition-all hover:scale-[1.02]"
+    >
       {/* Image Container */}
       <div className="relative aspect-square bg-warm-bg">
         {cat.mediaType === 'video' ? (

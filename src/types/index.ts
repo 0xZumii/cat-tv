@@ -1,6 +1,7 @@
 // User types
 export interface User {
   id: string;
+  walletAddress: string | null;
   balance: number;
   lastClaimAt: number | null;
   totalFeeds: number;

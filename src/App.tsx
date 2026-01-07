@@ -8,7 +8,10 @@ import { useToast } from './hooks/useToast';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Header } from './components/Header';
 import { StatsBar } from './components/StatsBar';
+import { LiveFeedTicker } from './components/LiveFeedTicker';
+import { HungryCatAlert } from './components/HungryCatAlert';
 import { CatGrid } from './components/CatGrid';
+import { CatFacts } from './components/CatFacts';
 import { SupportSection } from './components/SupportSection';
 import { AboutSection } from './components/AboutSection';
 import { Footer } from './components/Footer';
@@ -96,6 +99,11 @@ function App() {
             happyCats={happyCatsCount}
             totalCats={totalCats}
           />
+
+          <LiveFeedTicker cats={cats} />
+          <HungryCatAlert cats={cats} />
+
+          <CatFacts />
 
           <CatGrid
             cats={cats}

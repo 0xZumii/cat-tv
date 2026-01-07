@@ -38,6 +38,25 @@ export function useAuth() {
     error: null,
   });
 
+  // Get the user's embedded wallet address
+  const getWalletAddress = useCallback(() => {
+    if (!privyUser) return null;
+
+    // Find the embedded wallet from Privy user's linked accounts
+    const embeddedWallet = privyUser.linkedAccounts?.find(
+      (account) =>
+        account.type === 'wallet' &&
+        'walletClientType' in account &&
+        (account as { walletClientType?: string }).walletClientType === 'privy'
+    );
+
+    if (embeddedWallet && 'address' in embeddedWallet) {
+      return (embeddedWallet as { address: string }).address;
+    }
+
+    return null;
+  }, [privyUser]);
+
   // Fetch user data from our backend when authenticated
   useEffect(() => {
     async function fetchUserData() {
@@ -60,9 +79,12 @@ export function useAuth() {
           throw new Error('Failed to get access token');
         }
 
-        const userData = await callFunction('getUser', token);
+        // Get wallet address to send to backend
+        const walletAddress = getWalletAddress();
+
+        const userData = await callFunction('getUser', token, { walletAddress });
         setState({
-          user: { ...userData, id: privyUser.id },
+          user: { ...userData, id: privyUser.id, walletAddress },
           loading: false,
           error: null,
         });
@@ -77,7 +99,7 @@ export function useAuth() {
     }
 
     fetchUserData();
-  }, [ready, authenticated, privyUser, getAccessToken]);
+  }, [ready, authenticated, privyUser, getAccessToken, getWalletAddress]);
 
   const updateUser = useCallback((updates: Partial<User>) => {
     setState(prev => ({
