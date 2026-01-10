@@ -4,6 +4,7 @@ import { useCats } from './hooks/useCats';
 import { useBalance } from './hooks/useBalance';
 import { useFeed } from './hooks/useFeed';
 import { useToast } from './hooks/useToast';
+import { CONFIG } from './lib/constants';
 
 import { LoadingScreen } from './components/LoadingScreen';
 import { Header } from './components/Header';
@@ -20,7 +21,7 @@ import { ToastContainer } from './components/Toast';
 function App() {
   const { user, loading: authLoading, isAuthenticated, updateUser, login, logout } = useAuth();
   const { cats, happyCatsCount, totalCats, loading: catsLoading } = useCats();
-  const { balance, claiming, canClaimNow, timeUntilClaim, canAffordFeed, claim } = useBalance({ user, updateUser });
+  const { balance, claiming, canClaimNow, timeUntilClaim, canAffordFeed, claim, spendOptimistic } = useBalance({ user, updateUser });
   const { feed, isFeedingCat } = useFeed({ user, updateUser });
   const { toasts, showToast, removeToast } = useToast();
 
@@ -52,6 +53,7 @@ function App() {
   const handleFeed = async (catId: string) => {
     const result = await feed(catId);
     if (result?.success) {
+      spendOptimistic(CONFIG.FEED_COST);
       showToast(result.message || 'Fed successfully! 😸');
     } else if (result?.error) {
       showToast(result.error, 'error');
@@ -68,17 +70,29 @@ function App() {
 
   return (
     <div className="min-h-screen bg-warm-bg">
-      {/* Background Gradient */}
-      <div 
-        className="fixed inset-0 pointer-events-none z-0"
-        style={{
-          background: `
-            radial-gradient(ellipse at 20% 20%, rgba(255, 180, 180, 0.3) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 80%, rgba(184, 224, 210, 0.3) 0%, transparent 50%),
-            radial-gradient(ellipse at 60% 10%, rgba(212, 165, 255, 0.2) 0%, transparent 40%)
-          `
-        }}
-      />
+      {/* Animated Background Gradient */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Animated gradient base */}
+        <div
+          className="absolute inset-0 animate-gradient opacity-60"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 180, 180, 0.4) 0%, rgba(255, 248, 240, 0.2) 25%, rgba(184, 224, 210, 0.4) 50%, rgba(255, 248, 240, 0.2) 75%, rgba(212, 165, 255, 0.4) 100%)',
+          }}
+        />
+        {/* Floating orbs */}
+        <div
+          className="absolute -top-24 -left-24 w-96 h-96 rounded-full animate-float-slow opacity-40"
+          style={{ background: 'radial-gradient(circle, rgba(255, 180, 180, 0.6) 0%, transparent 70%)' }}
+        />
+        <div
+          className="absolute top-1/3 -right-32 w-[500px] h-[500px] rounded-full animate-float-slower opacity-30"
+          style={{ background: 'radial-gradient(circle, rgba(184, 224, 210, 0.6) 0%, transparent 70%)' }}
+        />
+        <div
+          className="absolute -bottom-32 left-1/4 w-[400px] h-[400px] rounded-full animate-float-slow opacity-35"
+          style={{ background: 'radial-gradient(circle, rgba(212, 165, 255, 0.5) 0%, transparent 70%)' }}
+        />
+      </div>
 
       {/* Content */}
       <div className="relative z-10">

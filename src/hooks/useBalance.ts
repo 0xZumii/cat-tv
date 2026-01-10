@@ -19,9 +19,13 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
   const api = useApi();
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [optimisticAdd, setOptimisticAdd] = useState(0);
 
   // Read balance from blockchain instead of Firestore
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useTokenBalance(user?.walletAddress);
+  const { balance: onChainBalance, loading: balanceLoading, refetch: refetchBalance } = useTokenBalance(user?.walletAddress);
+
+  // Display balance includes optimistic additions
+  const balance = onChainBalance + optimisticAdd;
 
   const lastClaimAt = user?.lastClaimAt ?? null;
   const canClaimNow = canClaim(lastClaimAt);
@@ -42,9 +46,14 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
         lastClaimAt: Date.now(),
       });
 
+      // Optimistically add the claimed amount immediately for smooth UI
+      setOptimisticAdd(prev => prev + data.claimed);
+
       // Refetch on-chain balance after a short delay to allow tx to confirm
-      setTimeout(() => {
-        refetchBalance();
+      // Then clear optimistic add since real balance should reflect it
+      setTimeout(async () => {
+        await refetchBalance();
+        setOptimisticAdd(0);
       }, 2000);
 
       return { success: true, claimed: data.claimed, txHash: data.txHash };
@@ -59,6 +68,16 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
 
   const canAffordFeed = balance >= CONFIG.FEED_COST;
 
+  // For optimistic UI updates when spending (e.g., feeding)
+  const spendOptimistic = useCallback((amount: number) => {
+    setOptimisticAdd(prev => prev - amount);
+    // Sync with real balance after delay
+    setTimeout(async () => {
+      await refetchBalance();
+      setOptimisticAdd(0);
+    }, 2000);
+  }, [refetchBalance]);
+
   return {
     balance,
     balanceLoading,
@@ -69,5 +88,6 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
     error,
     claim,
     refetchBalance,
+    spendOptimistic,
   };
 }

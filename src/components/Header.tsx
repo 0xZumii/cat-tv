@@ -1,5 +1,5 @@
 import { Fish, LogIn, LogOut } from 'lucide-react';
-import { formatNumber } from '../lib/constants';
+import { AnimatedNumber } from './AnimatedNumber';
 
 interface HeaderProps {
   balance: number;
@@ -35,11 +35,12 @@ export function Header({
         {isAuthenticated ? (
           <>
             {/* Balance Display */}
-            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-soft">
+            <div className="flex items-center gap-2 bg-white/70 backdrop-blur-xl border border-white/20 px-4 py-2 rounded-full shadow-soft">
               <Fish className="w-5 h-5 text-accent-orange" />
-              <span className="font-bold text-text-main">
-                {formatNumber(balance)}
-              </span>
+              <AnimatedNumber
+                value={balance}
+                className="font-bold text-text-main"
+              />
             </div>
 
             {/* Claim Button */}

@@ -22,7 +22,7 @@ export function CatCard({ cat, onFeed, canFeed, isFeeding }: CatCardProps) {
   return (
     <div
       id={`cat-${cat.id}`}
-      className="bg-white rounded-card shadow-card overflow-hidden transition-all hover:scale-[1.02]"
+      className="bg-white/70 backdrop-blur-xl border border-white/20 rounded-card shadow-card overflow-hidden transition-all hover:scale-[1.02] hover:bg-white/80"
     >
       {/* Image Container */}
       <div className="relative aspect-square bg-warm-bg">
