@@ -108,7 +108,7 @@ const CONFIG = {
   // Game parameters (adjusted for 100B supply)
   DAILY_AMOUNT: 100,      // 100 tokens per day
   FEED_COST: 10,          // 10 tokens per feed
-  MAX_DAILY_FEEDS: 50,    // 50 feeds per day (supports paying users)
+  MAX_DAILY_FEEDS: 100,   // 100 feeds per day (supports paying users)
   CLAIM_COOLDOWN_MS: 24 * 60 * 60 * 1000, // 24 hours
 
   // Token decimals (standard ERC-20)

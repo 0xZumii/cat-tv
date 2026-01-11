@@ -10,8 +10,8 @@ export function AboutSection() {
         
         <p className="text-text-soft leading-relaxed mb-4">
           Cat TV is a collective care experiment. Each day, you receive 100 cat food. 
-          Use it to feed any cat you'd like — each feeding costs 10 food, so you can 
-          care for up to 50 cats daily.
+          Use it to feed any cat you'd like — each feeding costs 10 food, so you can
+          care for up to 100 cats daily.
         </p>
         
         <p className="text-text-soft leading-relaxed mb-10">
@@ -21,7 +21,7 @@ export function AboutSection() {
         </p>
 
         {/* Features */}
-        <div className="flex justify-center gap-10 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-10">
           <Feature
             icon={<Gift className="w-8 h-8" />}
             title="Daily Allowance"

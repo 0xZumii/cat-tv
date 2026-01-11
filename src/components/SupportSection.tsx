@@ -57,7 +57,7 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
         </p>
 
         {/* Purchase Tiers */}
-        <div className="flex justify-center gap-5 flex-wrap mb-8">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-8">
           {PURCHASE_TIERS.map((tier, index) => (
             <button
               key={tier.id}

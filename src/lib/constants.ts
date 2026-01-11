@@ -3,7 +3,7 @@ import { Happiness, HappinessLevel } from '../types';
 export const CONFIG = {
   DAILY_AMOUNT: 100,
   FEED_COST: 10,
-  MAX_DAILY_FEEDS: 50,
+  MAX_DAILY_FEEDS: 100,
   CLAIM_COOLDOWN_MS: 24 * 60 * 60 * 1000,
 } as const;
 
