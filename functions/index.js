@@ -448,10 +448,11 @@ exports.claimDaily = createAuthenticatedEndpoint(async (data, userId) => {
     throw error;
   }
 
-  // Update user record with claim time
+  // Update user record with claim time and balance
   const now = Date.now();
   const updatedUser = {
     ...userData,
+    balance: (userData.balance || 0) + CONFIG.DAILY_AMOUNT,
     lastClaimAt: now,
     lastClaimTxHash: txHash,
   };
