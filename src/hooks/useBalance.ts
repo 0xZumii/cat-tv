@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useApi } from '../contexts/ApiContext';
 import { useTokenBalance } from './useTokenBalance';
 import { User } from '../types';
@@ -20,12 +20,27 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [optimisticAdd, setOptimisticAdd] = useState(0);
+  const [useFirestoreFallback, setUseFirestoreFallback] = useState(false);
 
   // Read balance from blockchain instead of Firestore
-  const { balance: onChainBalance, loading: balanceLoading, refetch: refetchBalance } = useTokenBalance(user?.walletAddress);
+  const { balance: onChainBalance, loading: balanceLoading, error: chainError, refetch: refetchBalance } = useTokenBalance(user?.walletAddress);
 
-  // Display balance includes optimistic additions
-  const balance = onChainBalance + optimisticAdd;
+  // Firestore fallback balance (generic food tracked in Firestore)
+  const firestoreBalance = user?.balance ?? 0;
+
+  // Use Firestore fallback if on-chain balance fails or times out
+  useEffect(() => {
+    if (chainError && !balanceLoading) {
+      console.warn('[useBalance] On-chain balance failed, using Firestore fallback');
+      setUseFirestoreFallback(true);
+    } else if (!chainError && !balanceLoading && onChainBalance > 0) {
+      setUseFirestoreFallback(false);
+    }
+  }, [chainError, balanceLoading, onChainBalance]);
+
+  // Display balance: prefer on-chain, fallback to Firestore if chain fails
+  const baseBalance = useFirestoreFallback ? firestoreBalance : onChainBalance;
+  const balance = baseBalance + optimisticAdd;
 
   const lastClaimAt = user?.lastClaimAt ?? null;
   const canClaimNow = canClaim(lastClaimAt);
@@ -47,14 +62,9 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
       });
 
       // Optimistically add the claimed amount immediately for smooth UI
+      // Don't clear it - the on-chain balance will eventually reflect the tx
+      // and the 30-second auto-refresh in useTokenBalance will sync up
       setOptimisticAdd(prev => prev + data.claimed);
-
-      // Refetch on-chain balance after a short delay to allow tx to confirm
-      // Then clear optimistic add since real balance should reflect it
-      setTimeout(async () => {
-        await refetchBalance();
-        setOptimisticAdd(0);
-      }, 2000);
 
       return { success: true, claimed: data.claimed, txHash: data.txHash };
     } catch (err: unknown) {
@@ -71,12 +81,9 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
   // For optimistic UI updates when spending (e.g., feeding)
   const spendOptimistic = useCallback((amount: number) => {
     setOptimisticAdd(prev => prev - amount);
-    // Sync with real balance after delay
-    setTimeout(async () => {
-      await refetchBalance();
-      setOptimisticAdd(0);
-    }, 2000);
-  }, [refetchBalance]);
+    // The on-chain balance auto-refreshes every 30 seconds
+    // so we don't need to manually sync here
+  }, []);
 
   return {
     balance,
@@ -89,5 +96,8 @@ export function useBalance({ user, updateUser }: UseBalanceProps) {
     claim,
     refetchBalance,
     spendOptimistic,
+    // Failsafe info
+    isUsingFirestoreFallback: useFirestoreFallback,
+    chainError,
   };
 }
