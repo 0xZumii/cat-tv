@@ -174,18 +174,44 @@ const CATFEEDER_ABI = [
 
 // Get provider and wallet for on-chain interactions
 function getWallet() {
-  const secret = process.env.SERVER_WALLET_PRIVATE_KEY;
+  let secret = process.env.SERVER_WALLET_PRIVATE_KEY;
   if (!secret) {
     throw new Error('SERVER_WALLET_PRIVATE_KEY not configured');
   }
   const provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
 
+  // Strip 0x prefix if accidentally added to mnemonic
+  if (secret.startsWith('0x') && secret.includes(' ')) {
+    secret = secret.slice(2);
+  }
+
   // Support both mnemonic phrases and hex private keys
   if (secret.includes(' ')) {
-    // It's a mnemonic phrase
+    // Target address we need to match
+    const TARGET = '0x4A5AD5dA80ffA5de85Ca7f578B9dfEa4e411E30b'.toLowerCase();
+
+    // Try many derivation paths
+    const hdNode = ethers.HDNodeWallet.fromPhrase(secret);
+    const paths = [
+      "44'/60'/0'/0/0", "44'/60'/0'/0/1", "44'/60'/0'/0/2",
+      "44'/60'/0'/0", "44'/60'/0'", "44'/60'/1'/0/0",
+      "44'/60'/0'/1/0", "44'/60'/0'/0/3", "44'/60'/0'/0/4",
+    ];
+
+    for (const path of paths) {
+      try {
+        const derived = hdNode.derivePath(path);
+        if (derived.address.toLowerCase() === TARGET) {
+          console.log(`[getWallet] Found matching path: ${path}`);
+          return derived.connect(provider);
+        }
+      } catch (e) { /* skip invalid paths */ }
+    }
+
+    // Fallback to standard if no match
+    console.log('[getWallet] No matching path found, using default');
     return ethers.Wallet.fromPhrase(secret, provider);
   } else {
-    // It's a private key
     return new ethers.Wallet(secret, provider);
   }
 }
@@ -267,6 +293,7 @@ async function claimDailyFallback(userData, userRef, userId) {
   // Update user record
   const updatedUser = {
     ...userData,
+    balance: (userData.balance || 0) + CONFIG.DAILY_AMOUNT,
     lastClaimAt: now,
     lastClaimTxHash: txHash,
   };
