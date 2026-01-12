@@ -1,17 +1,24 @@
-const functions = require('firebase-functions');
+const { onRequest } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const { ethers } = require('ethers');
 const cors = require('cors')({ origin: true });
 const { PrivyClient } = require('@privy-io/server-auth');
+
+// Define secrets
+const serverWalletKey = defineSecret('SERVER_WALLET_PRIVATE_KEY');
+const privySecret = defineSecret('PRIVY_APP_SECRET');
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // Privy configuration
 const PRIVY_APP_ID = 'cmk3cnogu0517ky0dl6r7k98d';
-const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
 
-const privy = new PrivyClient(PRIVY_APP_ID, PRIVY_APP_SECRET);
+// Helper to get Privy client (initialized lazily to access secret at runtime)
+function getPrivyClient() {
+  return new PrivyClient(PRIVY_APP_ID, process.env.PRIVY_APP_SECRET);
+}
 
 // Helper to verify Privy token and get user ID
 async function verifyPrivyToken(authHeader) {
@@ -22,6 +29,7 @@ async function verifyPrivyToken(authHeader) {
   const token = authHeader.substring(7);
 
   try {
+    const privy = getPrivyClient();
     const verifiedClaims = await privy.verifyAuthToken(token);
     return verifiedClaims.userId;
   } catch (error) {
@@ -32,7 +40,7 @@ async function verifyPrivyToken(authHeader) {
 
 // Helper to create authenticated HTTP endpoints
 function createAuthenticatedEndpoint(handler) {
-  return functions.https.onRequest(async (req, res) => {
+  return onRequest({ secrets: [serverWalletKey, privySecret] }, async (req, res) => {
     // Handle CORS
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -65,7 +73,7 @@ function createAuthenticatedEndpoint(handler) {
 
 // Helper to create public (unauthenticated) HTTP endpoints
 function createPublicEndpoint(handler) {
-  return functions.https.onRequest(async (req, res) => {
+  return onRequest(async (req, res) => {
     // Handle CORS
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -166,12 +174,20 @@ const CATFEEDER_ABI = [
 
 // Get provider and wallet for on-chain interactions
 function getWallet() {
-  const privateKey = process.env.SERVER_WALLET_PRIVATE_KEY;
-  if (!privateKey) {
+  const secret = process.env.SERVER_WALLET_PRIVATE_KEY;
+  if (!secret) {
     throw new Error('SERVER_WALLET_PRIVATE_KEY not configured');
   }
   const provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
-  return new ethers.Wallet(privateKey, provider);
+
+  // Support both mnemonic phrases and hex private keys
+  if (secret.includes(' ')) {
+    // It's a mnemonic phrase
+    return ethers.Wallet.fromPhrase(secret, provider);
+  } else {
+    // It's a private key
+    return new ethers.Wallet(secret, provider);
+  }
 }
 
 // Get token contract instance
@@ -708,7 +724,7 @@ exports.getStats = createPublicEndpoint(async () => {
 /**
  * HTTP endpoint for health check
  */
-exports.health = functions.https.onRequest((req, res) => {
+exports.health = onRequest((req, res) => {
   cors(req, res, () => {
     res.json({ status: 'ok', timestamp: Date.now() });
   });
@@ -862,7 +878,7 @@ exports.createCheckoutSession = createAuthenticatedEndpoint(async (data, userId)
  * Stripe webhook handler
  * Receives payment confirmations and credits user accounts
  */
-exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
+exports.stripeWebhook = onRequest(async (req, res) => {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   
