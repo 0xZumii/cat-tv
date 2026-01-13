@@ -1,4 +1,13 @@
-import { Happiness, HappinessLevel } from '../types';
+import { CatVibe, Happiness, HappinessLevel } from '../types';
+
+export const VIBE_OPTIONS: { value: CatVibe; label: string; emoji: string }[] = [
+  { value: 'sleepy', label: 'Sleepy', emoji: '😴' },
+  { value: 'menace', label: 'Menace', emoji: '😈' },
+  { value: 'void', label: 'Void', emoji: '🕳️' },
+  { value: 'derp', label: 'Derp', emoji: '🤪' },
+  { value: 'chonk', label: 'Chonk', emoji: '🍔' },
+  { value: 'zoomies', label: 'Zoomies', emoji: '💨' },
+];
 
 export const CONFIG = {
   DAILY_AMOUNT: 100,
@@ -75,4 +84,8 @@ export function getHappinessColor(level: HappinessLevel): string {
     case 'sad':
       return 'text-sad';
   }
+}
+
+export function getVibeInfo(vibe: CatVibe) {
+  return VIBE_OPTIONS.find((v) => v.value === vibe) || { value: vibe, label: vibe, emoji: '🐱' };
 }

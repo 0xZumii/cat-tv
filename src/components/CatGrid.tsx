@@ -1,4 +1,4 @@
-import { CatWithHappiness } from '../types';
+import { CatVibe, CatWithHappiness } from '../types';
 import { CatCard } from './CatCard';
 import { UploadCard } from './UploadCard';
 
@@ -8,6 +8,7 @@ interface CatGridProps {
   canFeed: boolean;
   onFeed: (catId: string) => void;
   isFeedingCat: (catId: string) => boolean;
+  onUpdateVibes: (catId: string, vibes: CatVibe[]) => void;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }
@@ -18,6 +19,7 @@ export function CatGrid({
   canFeed,
   onFeed,
   isFeedingCat,
+  onUpdateVibes,
   onSuccess,
   onError,
 }: CatGridProps) {
@@ -36,9 +38,11 @@ export function CatGrid({
           <CatCard
             key={cat.id}
             cat={cat}
+            userId={userId}
             onFeed={onFeed}
             canFeed={canFeed}
             isFeeding={isFeedingCat(cat.id)}
+            onUpdateVibes={onUpdateVibes}
           />
         ))}
       </div>

@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useApi } from '../contexts/ApiContext';
+import { CatVibe } from '../types';
+import { VIBE_OPTIONS } from '../lib/constants';
 
 interface UploadCardProps {
   userId: string | undefined;
@@ -15,6 +17,7 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
+  const [vibes, setVibes] = useState<CatVibe[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -24,7 +27,14 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
     setPreview(null);
     setFile(null);
     setName('');
+    setVibes([]);
     setIsModalOpen(false);
+  };
+
+  const toggleVibe = (vibe: CatVibe) => {
+    setVibes((prev) =>
+      prev.includes(vibe) ? prev.filter((v) => v !== vibe) : [...prev, vibe]
+    );
   };
 
   const handleFileSelect = (selectedFile: File) => {
@@ -93,6 +103,7 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
         name: name.trim(),
         mediaUrl,
         mediaType,
+        vibes: vibes.length > 0 ? vibes : undefined,
       });
 
       onSuccess(`${name} has joined Cat TV!`);
@@ -212,6 +223,28 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
                 'focus:outline-none focus:border-accent-orange transition-colors'
               )}
             />
+
+            {/* Vibe Selector */}
+            <div className="mb-4">
+              <p className="text-sm text-text-soft mb-2">Vibe tags (optional)</p>
+              <div className="flex flex-wrap gap-2">
+                {VIBE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleVibe(option.value)}
+                    className={clsx(
+                      'px-3 py-1.5 rounded-full text-sm font-medium transition-all',
+                      vibes.includes(option.value)
+                        ? 'bg-accent-lavender text-white'
+                        : 'bg-gray-100 text-text-soft hover:bg-gray-200'
+                    )}
+                  >
+                    {option.emoji} {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Actions */}
             <div className="flex gap-3">

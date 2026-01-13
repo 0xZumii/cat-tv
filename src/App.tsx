@@ -4,7 +4,9 @@ import { useCats } from './hooks/useCats';
 import { useBalance } from './hooks/useBalance';
 import { useFeed } from './hooks/useFeed';
 import { useToast } from './hooks/useToast';
+import { useApi } from './contexts/ApiContext';
 import { CONFIG } from './lib/constants';
+import { CatVibe } from './types';
 
 import { LoadingScreen } from './components/LoadingScreen';
 import { Header } from './components/Header';
@@ -24,6 +26,7 @@ function App() {
   const { balance, claiming, canClaimNow, timeUntilClaim, canAffordFeed, claim, spendOptimistic } = useBalance({ user, updateUser });
   const { feed, isFeedingCat } = useFeed({ user, updateUser, balance });
   const { toasts, showToast, removeToast } = useToast();
+  const api = useApi();
 
   // Check for purchase success on mount
   useEffect(() => {
@@ -57,6 +60,16 @@ function App() {
       showToast(result.message || 'Fed successfully! 😸');
     } else if (result?.error) {
       showToast(result.error, 'error');
+    }
+  };
+
+  // Handle update cat vibes
+  const handleUpdateVibes = async (catId: string, vibes: CatVibe[]) => {
+    try {
+      await api.callUpdateCatVibes({ catId, vibes });
+      showToast('Vibes updated! ✨');
+    } catch {
+      showToast('Failed to update vibes', 'error');
     }
   };
 
@@ -125,6 +138,7 @@ function App() {
             canFeed={canAffordFeed}
             onFeed={handleFeed}
             isFeedingCat={isFeedingCat}
+            onUpdateVibes={handleUpdateVibes}
             onSuccess={(msg) => showToast(msg)}
             onError={(msg) => showToast(msg, 'error')}
           />

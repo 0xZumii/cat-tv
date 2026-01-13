@@ -11,6 +11,9 @@ export interface User {
   createdAt: number;
 }
 
+// Cat vibe types
+export type CatVibe = 'sleepy' | 'menace' | 'void' | 'derp' | 'chonk' | 'zoomies';
+
 // Cat types
 export interface Cat {
   id: string;
@@ -21,6 +24,7 @@ export interface Cat {
   lastFedAt: number | null;
   createdAt: number;
   createdBy: string;
+  vibes?: CatVibe[];
 }
 
 export interface CatWithHappiness extends Cat {

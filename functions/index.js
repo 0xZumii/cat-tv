@@ -684,7 +684,7 @@ async function executeOnChainFeed(catId) {
  * Add a new cat
  */
 exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
-  const { name, mediaUrl, mediaType } = data;
+  const { name, mediaUrl, mediaType, vibes } = data;
 
   if (!name || !mediaUrl) {
     const error = new Error('name and mediaUrl required');
@@ -698,6 +698,10 @@ exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
     throw error;
   }
 
+  // Validate vibes if provided
+  const validVibes = ['sleepy', 'menace', 'void', 'derp', 'chonk', 'zoomies'];
+  const filteredVibes = Array.isArray(vibes) ? vibes.filter(v => validVibes.includes(v)) : [];
+
   const catRef = db.collection('cats').doc();
   const now = Date.now();
 
@@ -709,6 +713,7 @@ exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
     lastFedAt: null,
     createdAt: now,
     createdBy: userId,
+    vibes: filteredVibes,
   };
 
   await catRef.set(catData);
@@ -717,6 +722,58 @@ exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
     success: true,
     catId: catRef.id,
     cat: { id: catRef.id, ...catData },
+  };
+});
+
+/**
+ * Update cat vibes (owner only)
+ */
+exports.updateCatVibes = createAuthenticatedEndpoint(async (data, userId) => {
+  const { catId, vibes } = data;
+
+  if (!catId) {
+    const error = new Error('catId is required');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'INVALID_ARGUMENT';
+    throw error;
+  }
+
+  if (!Array.isArray(vibes)) {
+    const error = new Error('vibes must be an array');
+    error.httpErrorCode = { status: 400 };
+    error.code = 'INVALID_ARGUMENT';
+    throw error;
+  }
+
+  // Validate vibe values
+  const validVibes = ['sleepy', 'menace', 'void', 'derp', 'chonk', 'zoomies'];
+  const filteredVibes = vibes.filter(v => validVibes.includes(v));
+
+  const catRef = db.collection('cats').doc(catId);
+  const catDoc = await catRef.get();
+
+  if (!catDoc.exists) {
+    const error = new Error('Cat not found');
+    error.httpErrorCode = { status: 404 };
+    throw error;
+  }
+
+  const catData = catDoc.data();
+
+  // Check ownership
+  if (catData.createdBy !== userId) {
+    const error = new Error('Only the cat owner can update vibes');
+    error.httpErrorCode = { status: 403 };
+    error.code = 'PERMISSION_DENIED';
+    throw error;
+  }
+
+  // Update vibes
+  await catRef.update({ vibes: filteredVibes });
+
+  return {
+    success: true,
+    vibes: filteredVibes,
   };
 });
 

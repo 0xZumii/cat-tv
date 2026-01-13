@@ -68,9 +68,13 @@ export const createApiCaller = (getToken: () => Promise<string | null>) => ({
     const token = await getToken();
     return callFunction('feed', token, data);
   },
-  callAddCat: async (data: { name: string; mediaUrl: string; mediaType: string }) => {
+  callAddCat: async (data: { name: string; mediaUrl: string; mediaType: string; vibes?: string[] }) => {
     const token = await getToken();
     return callFunction('addCat', token, data);
+  },
+  callUpdateCatVibes: async (data: { catId: string; vibes: string[] }) => {
+    const token = await getToken();
+    return callFunction('updateCatVibes', token, data);
   },
   callGetCats: async () => {
     const token = await getToken();
