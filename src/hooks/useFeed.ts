@@ -6,9 +6,10 @@ import { CONFIG } from '../lib/constants';
 interface UseFeedProps {
   user: User | null;
   updateUser: (updates: Partial<User>) => void;
+  balance: number;
 }
 
-export function useFeed({ user, updateUser }: UseFeedProps) {
+export function useFeed({ user, updateUser, balance }: UseFeedProps) {
   const api = useApi();
   const [feeding, setFeeding] = useState<string | null>(null); // catId being fed
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export function useFeed({ user, updateUser }: UseFeedProps) {
   const feed = useCallback(async (catId: string) => {
     if (!user || feeding) return { success: false, error: 'Not ready' };
 
-    if (user.balance < CONFIG.FEED_COST) {
+    if (balance < CONFIG.FEED_COST) {
       return { success: false, error: 'Not enough food!' };
     }
 
@@ -44,7 +45,7 @@ export function useFeed({ user, updateUser }: UseFeedProps) {
     } finally {
       setFeeding(null);
     }
-  }, [api, user, feeding, updateUser]);
+  }, [api, user, feeding, updateUser, balance]);
 
   const isFeedingCat = useCallback((catId: string) => {
     return feeding === catId;

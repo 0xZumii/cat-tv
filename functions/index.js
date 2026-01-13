@@ -226,6 +226,15 @@ function getFaucetContract(wallet) {
   return new ethers.Contract(CONFIG.FAUCET_ADDRESS, FAUCET_ABI, wallet);
 }
 
+// Get on-chain token balance for a wallet address
+async function getOnChainBalance(walletAddress) {
+  const provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+  const token = new ethers.Contract(CONFIG.TOKEN_ADDRESS, ERC20_ABI, provider);
+  const balance = await token.balanceOf(walletAddress);
+  // Convert from wei (18 decimals) to whole tokens
+  return Number(ethers.formatUnits(balance, 18));
+}
+
 // Get CatFeeder contract instance
 function getCatFeederContract(wallet) {
   return new ethers.Contract(CONFIG.CATFEEDER_ADDRESS, CATFEEDER_ABI, wallet);
@@ -524,36 +533,47 @@ exports.feed = createAuthenticatedEndpoint(async (data, userId) => {
   const userRef = db.collection('users').doc(userId);
   const catRef = db.collection('cats').doc(catId);
   const statsRef = db.collection('stats').doc('global');
-  
-  // Run transaction
+
+  // First, get user to check wallet address
+  const userDoc = await userRef.get();
+  if (!userDoc.exists) {
+    const error = new Error('User not found');
+    error.httpErrorCode = { status: 404 };
+    throw error;
+  }
+
+  const userData = userDoc.data();
+  if (!userData.walletAddress) {
+    const error = new Error('No wallet address found. Please reload the page.');
+    error.httpErrorCode = { status: 400 };
+    throw error;
+  }
+
+  // Check on-chain balance (this is the source of truth)
+  const onChainBalance = await getOnChainBalance(userData.walletAddress);
+  console.log(`[feed] On-chain balance for ${userData.walletAddress}: ${onChainBalance}`);
+
+  if (onChainBalance < CONFIG.FEED_COST) {
+    const error = new Error('Not enough food! Come back tomorrow.');
+    error.httpErrorCode = { status: 400 };
+    throw error;
+  }
+
+  // Run transaction for Firestore updates
   const result = await db.runTransaction(async (transaction) => {
-    const [userDoc, catDoc, statsDoc] = await Promise.all([
-      transaction.get(userRef),
+    const [catDoc, statsDoc] = await Promise.all([
       transaction.get(catRef),
       transaction.get(statsRef),
     ]);
-    
-    if (!userDoc.exists) {
-      const error = new Error('User not found');
-      error.httpErrorCode = { status: 404 };
-      throw error;
-    }
+
     if (!catDoc.exists) {
       const error = new Error('Cat not found');
       error.httpErrorCode = { status: 404 };
       throw error;
     }
 
-    const userData = userDoc.data();
     const catData = catDoc.data();
     const statsData = statsDoc.exists ? statsDoc.data() : { totalFeeds: 0 };
-
-    // Check balance
-    if (userData.balance < CONFIG.FEED_COST) {
-      const error = new Error('Not enough food! Come back tomorrow.');
-      error.httpErrorCode = { status: 400 };
-      throw error;
-    }
 
     // Check daily feed limit
     const now = Date.now();
@@ -574,9 +594,9 @@ exports.feed = createAuthenticatedEndpoint(async (data, userId) => {
       throw error;
     }
     
-    // Update user
+    // Update user (sync Firestore balance with on-chain balance after deduction)
     transaction.update(userRef, {
-      balance: userData.balance - CONFIG.FEED_COST,
+      balance: onChainBalance - CONFIG.FEED_COST,
       totalFeeds: (userData.totalFeeds || 0) + 1,
       feedsToday: feedsToday + 1,
       lastFeedDate: now,
@@ -603,7 +623,7 @@ exports.feed = createAuthenticatedEndpoint(async (data, userId) => {
     });
     
     return {
-      newBalance: userData.balance - CONFIG.FEED_COST,
+      newBalance: onChainBalance - CONFIG.FEED_COST,
       catName: catData.name,
       feedsRemaining: CONFIG.MAX_DAILY_FEEDS - (feedsToday + 1),
     };

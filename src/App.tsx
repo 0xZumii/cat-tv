@@ -22,7 +22,7 @@ function App() {
   const { user, loading: authLoading, isAuthenticated, updateUser, login, logout } = useAuth();
   const { cats, happyCatsCount, totalCats, loading: catsLoading } = useCats();
   const { balance, claiming, canClaimNow, timeUntilClaim, canAffordFeed, claim, spendOptimistic } = useBalance({ user, updateUser });
-  const { feed, isFeedingCat } = useFeed({ user, updateUser });
+  const { feed, isFeedingCat } = useFeed({ user, updateUser, balance });
   const { toasts, showToast, removeToast } = useToast();
 
   // Check for purchase success on mount
