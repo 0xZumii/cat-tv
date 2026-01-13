@@ -52,7 +52,7 @@ interface FeatureProps {
 function Feature({ icon, title, description }: FeatureProps) {
   return (
     <div className="text-center max-w-[180px]">
-      <div className="text-accent-orange mx-auto mb-3">
+      <div className="flex items-center justify-center text-accent-orange mb-3">
         {icon}
       </div>
       <h3 className="font-display text-lg font-semibold text-text-main mb-2">
