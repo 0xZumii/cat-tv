@@ -3,6 +3,7 @@ import { Fish, Pencil } from 'lucide-react';
 import clsx from 'clsx';
 import { CatVibe, CatWithHappiness } from '../types';
 import { CONFIG, getVibeInfo, VIBE_OPTIONS } from '../lib/constants';
+import { ProofOfCatBadge } from './ProofOfCatBadge';
 
 interface CatCardProps {
   cat: CatWithHappiness;
@@ -85,6 +86,13 @@ export function CatCard({ cat, userId, onFeed, canFeed, isFeeding, onUpdateVibes
           {happiness.emoji} {happiness.label}
         </div>
 
+        {/* Proof of Cat Badge */}
+        {cat.proofOfCat && (
+          <div className="absolute bottom-3 left-3">
+            <ProofOfCatBadge proof={cat.proofOfCat} size="sm" />
+          </div>
+        )}
+
         {/* Feeding Animation Overlay */}
         {isFeeding && (
           <div className="absolute inset-0 bg-accent-orange/20 flex items-center justify-center">
@@ -164,7 +172,7 @@ export function CatCard({ cat, userId, onFeed, canFeed, isFeeding, onUpdateVibes
               </div>
             )}
             <p className="text-sm text-text-soft mt-1">
-              Fed {cat.totalFed || 0} times
+              {cat.totalFed || 0} vibes
             </p>
           </div>
 

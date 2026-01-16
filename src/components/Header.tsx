@@ -61,7 +61,7 @@ export function Header({
                   Claiming...
                 </span>
               ) : canClaim ? (
-                'Claim Daily Food'
+                'Claim Daily Treats'
               ) : (
                 timeUntilClaim || 'Claimed'
               )}

@@ -10,7 +10,7 @@ export function StatsBar({ totalFeeds, happyCats, totalCats }: StatsBarProps) {
   return (
     <div className="flex justify-center py-6 max-w-6xl mx-auto px-4">
       <div className="flex gap-8 sm:gap-12 bg-white/50 backdrop-blur-xl border border-white/30 rounded-full px-8 py-4 shadow-soft">
-        <Stat value={totalFeeds} label="Total Feeds" />
+        <Stat value={totalFeeds} label="Total Vibes" />
         <Stat value={happyCats} label="Happy Cats" />
         <Stat value={totalCats} label="Cats" />
       </div>

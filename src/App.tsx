@@ -14,6 +14,7 @@ import { StatsBar } from './components/StatsBar';
 import { LiveFeedTicker } from './components/LiveFeedTicker';
 import { HungryCatAlert } from './components/HungryCatAlert';
 import { CatGrid } from './components/CatGrid';
+import { ChannelTV } from './components/ChannelTV';
 import { CatFacts } from './components/CatFacts';
 import { SupportSection } from './components/SupportSection';
 import { AboutSection } from './components/AboutSection';
@@ -34,7 +35,7 @@ function App() {
     const purchaseStatus = params.get('purchase');
 
     if (purchaseStatus === 'success') {
-      showToast('Thank you for supporting Cat TV! 💛 Your food has been added.');
+      showToast('Thank you for supporting Cat TV! 💛 Your treats have been added.');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (purchaseStatus === 'cancelled') {
       showToast('Purchase cancelled', 'error');
@@ -46,7 +47,7 @@ function App() {
   const handleClaim = async () => {
     const result = await claim();
     if (result?.success) {
-      showToast(`Claimed ${result.claimed} cat food! 🐟`);
+      showToast(`Claimed ${result.claimed} treats! 🐟`);
     } else if (result?.error) {
       showToast(result.error, 'error');
     }
@@ -57,7 +58,7 @@ function App() {
     const result = await feed(catId);
     if (result?.success) {
       spendOptimistic(CONFIG.FEED_COST);
-      showToast(result.message || 'Fed successfully! 😸');
+      showToast(result.message || 'Vibed! 😸');
     } else if (result?.error) {
       showToast(result.error, 'error');
     }
@@ -129,6 +130,13 @@ function App() {
 
           <LiveFeedTicker cats={cats} />
           <HungryCatAlert cats={cats} />
+
+          <ChannelTV
+            cats={cats}
+            canFeed={canAffordFeed}
+            onFeed={handleFeed}
+            isFeedingCat={isFeedingCat}
+          />
 
           <CatFacts />
 

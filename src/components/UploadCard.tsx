@@ -2,8 +2,9 @@ import { useState, useRef, useCallback } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useApi } from '../contexts/ApiContext';
-import { CatVibe } from '../types';
+import { CatVibe, ProofOfCat } from '../types';
 import { VIBE_OPTIONS } from '../lib/constants';
+import { ProofOfCatReveal } from './ProofOfCatReveal';
 
 interface UploadCardProps {
   userId: string | undefined;
@@ -20,6 +21,13 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
   const [vibes, setVibes] = useState<CatVibe[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+
+  // Proof of Cat reveal state
+  const [proofReveal, setProofReveal] = useState<{
+    proof: ProofOfCat;
+    catName: string;
+    catImageUrl: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,21 +107,39 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
       const { mediaUrl, mediaType } = uploadResult.data as { mediaUrl: string; mediaType: string };
 
       // Create cat in Firestore via Cloud Function
-      await api.callAddCat({
+      const addCatResult = await api.callAddCat({
         name: name.trim(),
         mediaUrl,
         mediaType,
         vibes: vibes.length > 0 ? vibes : undefined,
       });
 
-      onSuccess(`${name} has joined Cat TV!`);
-      resetForm();
+      const { proofOfCat } = addCatResult.data as { proofOfCat: ProofOfCat };
+
+      // Close the upload modal and show the proof reveal!
+      const catName = name.trim();
+      setIsModalOpen(false);
+
+      // Show the proof of cat reveal
+      setProofReveal({
+        proof: proofOfCat,
+        catName,
+        catImageUrl: mediaUrl,
+      });
+
     } catch (err) {
       console.error('Upload error:', err);
       onError('Failed to add cat. Please try again.');
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleProofRevealClose = () => {
+    const catName = proofReveal?.catName || 'Your cat';
+    setProofReveal(null);
+    resetForm();
+    onSuccess(`${catName} has joined Cat TV!`);
   };
 
   return (
@@ -138,6 +164,16 @@ export function UploadCard({ userId, onSuccess, onError }: UploadCardProps) {
           Share a furry friend
         </span>
       </div>
+
+      {/* Proof of Cat Reveal Modal */}
+      {proofReveal && (
+        <ProofOfCatReveal
+          proof={proofReveal.proof}
+          catName={proofReveal.catName}
+          catImageUrl={proofReveal.catImageUrl}
+          onClose={handleProofRevealClose}
+        />
+      )}
 
       {/* Upload Modal */}
       {isModalOpen && (

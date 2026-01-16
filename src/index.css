@@ -147,3 +147,30 @@ body {
 .animate-live-pulse {
   animation: live-pulse 2s ease-in-out infinite;
 }
+
+/* Proof of Cat scanning animation */
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes flash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-scan {
+  animation: scan 1.5s ease-in-out infinite;
+}
+
+.animate-flash {
+  animation: flash 0.5s ease-out forwards;
+}

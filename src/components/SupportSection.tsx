@@ -53,7 +53,7 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
           Support Cat TV
         </h2>
         <p className="text-lg text-text-soft mb-8">
-          Want to feed more cats? Your support keeps Cat TV running and helps real shelters.
+          Want to vibe with more cats? Your support keeps Cat TV running and helps real shelters.
         </p>
 
         {/* Purchase Tiers */}
@@ -83,10 +83,10 @@ export function SupportSection({ isAuthenticated, onError }: SupportSectionProps
                 ${tier.priceUsd}
               </div>
               <div className="font-bold text-text-main mb-1">
-                {tier.cattv} Food
+                {tier.cattv} Treats
               </div>
               <div className="text-sm text-text-soft">
-                Feed {tier.catsCanFeed} cats
+                Vibe with {tier.catsCanFeed} cats
               </div>
             </button>
           ))}

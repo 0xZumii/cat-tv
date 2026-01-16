@@ -78,7 +78,7 @@ export function LiveFeedTicker({ cats }: LiveFeedTickerProps) {
         <div className="flex items-center justify-center gap-2 text-sm">
           <Heart size={14} className="text-accent-pink animate-pulse" fill="currentColor" />
           <span className="text-text-soft">
-            Someone fed{' '}
+            Someone vibed with{' '}
             <span className="font-semibold text-text-main">{currentEvent?.catName}</span>
             {' '}{timeAgo}
           </span>

@@ -43,7 +43,7 @@ export function HungryCatAlert({ cats, onScrollToCat }: HungryCatAlertProps) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sad">
             <AlertCircle size={18} />
-            <span className="font-semibold text-sm">Hungry cats need you!</span>
+            <span className="font-semibold text-sm">These cats need some love!</span>
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">

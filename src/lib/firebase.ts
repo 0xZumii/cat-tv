@@ -84,7 +84,7 @@ export const createApiCaller = (getToken: () => Promise<string | null>) => ({
     const token = await getToken();
     return callFunction('getStats', token);
   },
-  callCreateCheckout: async (data: { tierId: string }) => {
+  callCreateCheckout: async (data: { tierId: string; successUrl?: string; cancelUrl?: string }) => {
     const token = await getToken();
     return callFunction('createCheckoutSession', token, data);
   },

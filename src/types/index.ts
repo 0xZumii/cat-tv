@@ -11,8 +11,36 @@ export interface User {
   createdAt: number;
 }
 
+// Proof of Cat verification types
+export type ProofOfCatVerdict =
+  | 'certified_cat'      // Definitely a real cat
+  | 'probably_cat'       // Looks like a cat but we're not 100% sure
+  | 'suspicious_critter' // Might be a dog, hamster, or other animal in disguise
+  | 'ai_imposter'        // Detected as AI-generated
+  | 'unknown_entity'     // We have no idea what this is
+  | 'chaos_agent';       // Too chaotic to classify
+
+export interface ProofOfCat {
+  verdict: ProofOfCatVerdict;
+  confidence: number;      // 0-100 confidence score
+  funnyMessage: string;    // A playful message about the verdict
+  verifiedAt: number;      // Timestamp of verification
+}
+
 // Cat vibe types
-export type CatVibe = 'sleepy' | 'menace' | 'void' | 'derp' | 'chonk' | 'zoomies';
+export type CatVibe =
+  | 'sleepy'
+  | 'menace'
+  | 'void'
+  | 'derp'
+  | 'chonk'
+  | 'zoomies'
+  | 'happy'
+  | 'grumpy'
+  | 'floof'
+  | 'loaf'
+  | 'majestic'
+  | 'chaos';
 
 // Cat types
 export interface Cat {
@@ -25,6 +53,7 @@ export interface Cat {
   createdAt: number;
   createdBy: string;
   vibes?: CatVibe[];
+  proofOfCat?: ProofOfCat;
 }
 
 export interface CatWithHappiness extends Cat {
@@ -83,6 +112,7 @@ export interface AddCatResponse {
   success: boolean;
   catId: string;
   cat: Cat;
+  proofOfCat: ProofOfCat;
 }
 
 // Config

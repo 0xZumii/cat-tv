@@ -263,6 +263,114 @@ function calculateHappiness(lastFedAt) {
 }
 
 /**
+ * Mock "Proof of Cat" verification
+ * Returns a fun, randomized verdict about whether the uploaded media is a real cat
+ * TODO: Replace with actual AI vision API (Google Cloud Vision, OpenAI, etc.)
+ */
+function generateProofOfCat(catName) {
+  const verdicts = [
+    {
+      verdict: 'certified_cat',
+      weight: 60, // Most common - we want people to feel good!
+      messages: [
+        `${catName} has been verified as a CERTIFIED REAL CAT. The vibes are immaculate.`,
+        `Our advanced feline detection systems confirm: ${catName} is 100% genuine cat.`,
+        `CERTIFIED PAWSITIVE! ${catName} passes the vibe check with flying colors.`,
+        `${catName} exhibits classic cat behavior: judging everyone silently. Verified.`,
+        `The council of cats has reviewed ${catName} and approved their membership.`,
+      ],
+    },
+    {
+      verdict: 'probably_cat',
+      weight: 15,
+      messages: [
+        `${catName} is... probably a cat? The ears check out but the attitude is suspicious.`,
+        `Our systems are 87% sure ${catName} is a cat. The other 13% thinks it might be a very fluffy potato.`,
+        `${catName} has been provisionally certified. Please submit additional evidence of toe beans.`,
+        `Likely cat detected! ${catName} exhibits cat-like energy but we can't rule out "very lazy dog."`,
+      ],
+    },
+    {
+      verdict: 'suspicious_critter',
+      weight: 10,
+      messages: [
+        `ALERT: ${catName} may be a dog in an extremely convincing cat costume.`,
+        `Our sensors detect non-feline energy. Is ${catName} actually a very round hamster?`,
+        `${catName} has been flagged for suspicious non-cat activity. Investigation pending.`,
+        `This creature claims to be a cat but our experts are unconvinced. Proceed with caution.`,
+        `${catName}: Cat, or very ambitious raccoon? The mystery deepens.`,
+      ],
+    },
+    {
+      verdict: 'ai_imposter',
+      weight: 8,
+      messages: [
+        `BEEP BOOP! ${catName} appears to be an AI-generated cat. Still cute though.`,
+        `Our detectors sense digital whiskers! ${catName} might be from the matrix.`,
+        `${catName} has too many paws... or not enough? Classic AI cat behavior.`,
+        `Silicon-based lifeform detected! ${catName} is certified artificial... but adorable.`,
+      ],
+    },
+    {
+      verdict: 'unknown_entity',
+      weight: 5,
+      messages: [
+        `${catName} defies classification. Our systems have given up and are taking a nap.`,
+        `ERROR 404: Cat not found. But we found... something? It's looking at us.`,
+        `${catName} exists beyond the cat-dog binary. A true icon.`,
+        `Our AI looked at ${catName} and simply replied: "idk man"`,
+      ],
+    },
+    {
+      verdict: 'chaos_agent',
+      weight: 2, // Rare!
+      messages: [
+        `${catName} has broken our verification system. Chaos level: MAXIMUM.`,
+        `SYSTEM OVERLOAD! ${catName} is too powerful to classify.`,
+        `${catName} looked directly into our AI and now it only speaks in meows.`,
+        `The prophecy spoke of one who would transcend classification... ${catName} is here.`,
+      ],
+    },
+  ];
+
+  // Weighted random selection
+  const totalWeight = verdicts.reduce((sum, v) => sum + v.weight, 0);
+  let random = Math.random() * totalWeight;
+
+  let selected = verdicts[0];
+  for (const v of verdicts) {
+    random -= v.weight;
+    if (random <= 0) {
+      selected = v;
+      break;
+    }
+  }
+
+  // Pick a random message from the selected verdict
+  const funnyMessage = selected.messages[Math.floor(Math.random() * selected.messages.length)];
+
+  // Generate a confidence score based on verdict type
+  const confidenceRanges = {
+    certified_cat: [85, 99],
+    probably_cat: [60, 84],
+    suspicious_critter: [40, 70],
+    ai_imposter: [70, 95],
+    unknown_entity: [10, 40],
+    chaos_agent: [1, 100], // Chaos has no rules
+  };
+
+  const [min, max] = confidenceRanges[selected.verdict];
+  const confidence = Math.floor(Math.random() * (max - min + 1)) + min;
+
+  return {
+    verdict: selected.verdict,
+    confidence,
+    funnyMessage,
+    verifiedAt: Date.now(),
+  };
+}
+
+/**
  * Fallback claim function using direct token transfer (when faucet not deployed)
  */
 async function claimDailyFallback(userData, userRef, userId) {
@@ -699,8 +807,12 @@ exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
   }
 
   // Validate vibes if provided
-  const validVibes = ['sleepy', 'menace', 'void', 'derp', 'chonk', 'zoomies'];
+  // Valid cat personality vibes
+  const validVibes = ['sleepy', 'menace', 'void', 'derp', 'chonk', 'zoomies', 'happy', 'grumpy', 'floof', 'loaf', 'majestic', 'chaos'];
   const filteredVibes = Array.isArray(vibes) ? vibes.filter(v => validVibes.includes(v)) : [];
+
+  // Generate Proof of Cat verification (fun easter egg!)
+  const proofOfCat = generateProofOfCat(name.trim());
 
   const catRef = db.collection('cats').doc();
   const now = Date.now();
@@ -714,6 +826,7 @@ exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
     createdAt: now,
     createdBy: userId,
     vibes: filteredVibes,
+    proofOfCat,
   };
 
   await catRef.set(catData);
@@ -722,6 +835,7 @@ exports.addCat = createAuthenticatedEndpoint(async (data, userId) => {
     success: true,
     catId: catRef.id,
     cat: { id: catRef.id, ...catData },
+    proofOfCat,
   };
 });
 
@@ -746,7 +860,8 @@ exports.updateCatVibes = createAuthenticatedEndpoint(async (data, userId) => {
   }
 
   // Validate vibe values
-  const validVibes = ['sleepy', 'menace', 'void', 'derp', 'chonk', 'zoomies'];
+  // Valid cat personality vibes
+const validVibes = ['sleepy', 'menace', 'void', 'derp', 'chonk', 'zoomies', 'happy', 'grumpy', 'floof', 'loaf', 'majestic', 'chaos'];
   const filteredVibes = vibes.filter(v => validVibes.includes(v));
 
   const catRef = db.collection('cats').doc(catId);

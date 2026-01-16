@@ -9,33 +9,33 @@ export function AboutSection() {
         </h2>
         
         <p className="text-text-soft leading-relaxed mb-4">
-          Cat TV is a collective care experiment. Each day, you receive 100 cat food. 
-          Use it to feed any cat you'd like — each feeding costs 10 food, so you can
-          care for up to 100 cats daily.
+          Cat TV is a collective hangout. Each day, you receive 100 treats.
+          Use them to vibe with any cat you'd like — each vibe costs 10 treats, so you can
+          hang with up to 10 cats daily (or more with extra treats).
         </p>
-        
+
         <p className="text-text-soft leading-relaxed mb-10">
-          When you feed a cat, food fills their bowl. Over 24 hours, it flows to our 
-          Care Fund — supporting real shelter donations and keeping Cat TV sustainable. 
-          It's a circular economy built on care.
+          When you vibe with a cat, treats go to their jar. Over 24 hours, they flow to our
+          Care Fund — supporting real shelter donations and keeping Cat TV sustainable.
+          It's a circular economy built on good vibes.
         </p>
 
         {/* Features */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-10">
           <Feature
             icon={<Gift className="w-8 h-8" />}
-            title="Daily Allowance"
-            description="Claim free cat food every 24 hours"
+            title="Daily Treats"
+            description="Claim free treats every 24 hours"
           />
           <Feature
             icon={<SmilePlus className="w-8 h-8" />}
-            title="Happy Cats"
-            description="Fed cats show their happiness"
+            title="Good Vibes"
+            description="Show cats some love"
           />
           <Feature
             icon={<Users className="w-8 h-8" />}
-            title="Community Care"
-            description="Everyone helps keep cats fed"
+            title="Hang Together"
+            description="A chill place to appreciate cats"
           />
         </div>
       </div>

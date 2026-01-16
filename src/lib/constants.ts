@@ -1,12 +1,18 @@
 import { CatVibe, Happiness, HappinessLevel } from '../types';
 
 export const VIBE_OPTIONS: { value: CatVibe; label: string; emoji: string }[] = [
+  { value: 'happy', label: 'Happy', emoji: '😸' },
   { value: 'sleepy', label: 'Sleepy', emoji: '😴' },
+  { value: 'grumpy', label: 'Grumpy', emoji: '😾' },
   { value: 'menace', label: 'Menace', emoji: '😈' },
   { value: 'void', label: 'Void', emoji: '🕳️' },
   { value: 'derp', label: 'Derp', emoji: '🤪' },
   { value: 'chonk', label: 'Chonk', emoji: '🍔' },
+  { value: 'floof', label: 'Floof', emoji: '☁️' },
+  { value: 'loaf', label: 'Loaf', emoji: '🍞' },
   { value: 'zoomies', label: 'Zoomies', emoji: '💨' },
+  { value: 'majestic', label: 'Majestic', emoji: '👑' },
+  { value: 'chaos', label: 'Chaos', emoji: '🌀' },
 ];
 
 export const CONFIG = {
@@ -27,19 +33,19 @@ export const PURCHASE_TIERS = [
  */
 export function getHappiness(lastFedAt: number | null): Happiness {
   if (!lastFedAt) {
-    return { level: 'sad', emoji: '😿', label: 'Hungry' };
+    return { level: 'sad', emoji: '😺', label: 'Chillin' };
   }
 
   const now = Date.now();
   const hoursSinceFed = (now - lastFedAt) / (1000 * 60 * 60);
 
   if (hoursSinceFed < 6) {
-    return { level: 'happy', emoji: '😸', label: 'Happy' };
+    return { level: 'happy', emoji: '😸', label: 'Vibing' };
   }
   if (hoursSinceFed < 24) {
-    return { level: 'okay', emoji: '🙂', label: 'Okay' };
+    return { level: 'okay', emoji: '🐱', label: 'Cozy' };
   }
-  return { level: 'sad', emoji: '😿', label: 'Hungry' };
+  return { level: 'sad', emoji: '😺', label: 'Chillin' };
 }
 
 /**
