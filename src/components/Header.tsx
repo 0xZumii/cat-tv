@@ -26,9 +26,14 @@ export function Header({
     <header className="px-6 py-5 flex justify-between items-center max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
         <span className="text-4xl">🐱</span>
-        <h1 className="font-display text-2xl font-semibold text-text-main">
-          Cat TV
-        </h1>
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-text-main">
+            Cat TV
+          </h1>
+          <p className="text-xs text-text-soft hidden sm:block">
+            Your cozy corner of the internet
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">

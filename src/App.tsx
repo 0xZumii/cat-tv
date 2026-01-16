@@ -131,12 +131,7 @@ function App() {
           <LiveFeedTicker cats={cats} />
           <HungryCatAlert cats={cats} />
 
-          <ChannelTV
-            cats={cats}
-            canFeed={canAffordFeed}
-            onFeed={handleFeed}
-            isFeedingCat={isFeedingCat}
-          />
+          <ChannelTV />
 
           <CatFacts />
 
